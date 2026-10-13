@@ -1,4 +1,5 @@
 import "~/styles/globals.css";
+import { ByokSessionLifecycle } from "~/components/byok-session-lifecycle";
 
 import { fontVariables } from "~/lib/fonts";
 import { Suspense } from "react";
@@ -65,6 +66,7 @@ export default async function RootLayout({ children }: Props) {
         </a>
         <LeaveGuardListener />
         <SessionProvider>
+          <ByokSessionLifecycle />
           <TRPCProviderWrapper>
             <ThemeProvider
               attribute="class"

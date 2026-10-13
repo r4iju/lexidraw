@@ -1,0 +1,37 @@
+# Private image contract (#284)
+
+## Availability and primary-source audit (2026-10-10)
+
+Production image generation is **unavailable**. Neither a system key nor the presence of an OpenRouter text key enables it. Local AI cannot generate images. Public Pro remains Coming soon; this ticket does not enable payment or certify other legacy AI features.
+
+[OpenRouter image API documentation](https://openrouter.ai/docs/guides/overview/multimodal/image-generation) describes the dedicated `POST /api/v1/images`, base64 results and model/endpoint capability metadata. A text chat adapter does not prove image compatibility. Read-only public metadata for `google/gemini-3-pro-image` advertises one output, 1K/2K/4K resolution and aspect ratios including 1:1; its endpoint records expose image token rates. The older `google/gemini-3-pro-image-preview` is a distinct record. No newer alias's price was substituted for it.
+
+[Google's pricing](https://ai.google.dev/gemini-api/docs/pricing) lists `gemini-3-pro-image` standard input $2/million tokens, text/thinking output $12/million and image output $120/million; nominal 1K/2K image cost is $0.134. [Image generation documentation](https://ai.google.dev/gemini-api/docs/image-generation) says thinking cannot be disabled and includes intermediate thought images. Those nominal image prices do not establish the complete maximum for an actual OpenRouter request.
+
+An unauthenticated OPTIONS request on the dedicated OpenRouter endpoint allowed POST, Authorization and Content-Type from the local origin. This proves only public preflight behavior. Account entitlement, authenticated browser/native success, exact enforced thinking/output limits, routing/quality behavior and complete billable costs remain unverified. No generation request or fake credential was sent to a live provider. The preliminary 60-credit Gemini maximum remains unvalidated.
+
+The evidence files in `/tmp/lexidraw-276-implementation/284-openrouter-*` record public GET metadata and CORS headers. External setup/authenticated paid preflight is a separate pending task requiring authorization.
+
+## Injected implementation
+
+`ImagePricebook` accepts only an explicitly synthetic fixture snapshot. There is no environment switch to install a production executor. One configuration fixes a 1,500-byte prompt, one 1024×1024 PNG, one attempt, 30 seconds, all input/thinking/text/image cost categories and a complete maximum. The fixture's 60-credit quote is synthetic accounting evidence, not validated Gemini pricing.
+
+Pro uses owner-audited eligibility, bounded test entitlement and the persistent ledger. Acceptance precedes reservation; reservation precedes transport. Image accounting uses its own modality schema. The complete `period-rates-v2` schedule is fixed at period creation or renewal. Image capability is explicitly unavailable unless that schedule contains an approved complete book; first use cannot enable or reprice it. Operation snapshots retain their accepted rates. Completion persisted under the write lock outranks a stale refund/cancel verdict. Unknown or started attempts remain held for audited reconciliation; confirmed technical failure refunds the customer's reservation while supplier spend stays recorded. Replay never generates again. Regeneration uses a new action identity. The existing shared spend/failure circuit applies.
+
+BYOK has only an explicitly injected adapter for exact `https://openrouter.ai/api/v1/images`, with device key attachment in browser/native transport and redirects rejected. Its fake model/config is deliberately not a provider availability claim. Production BYOK image transport is disabled. Native JavaScript receives no key; app authentication is separate. No arbitrary model, URL, path or body configuration is accepted.
+
+## Saved artifacts
+
+The authenticated `imagePower.save` service validates strict raster content and allowlisted dimensions/type only. PNG ancillary metadata and non-allowlisted chunks are rejected. Browser and server paths independently decode compressed pixels within a fixed raster bound; native ImageIO verifies decoded image content before local retention. Encoded SDK envelopes cannot masquerade as image pixel data. Existing credential guards check base64 and decoded binary on device paths, including retired keys. Provider URLs are never fetched by the application server and receive no provider authorization. Storage receives only validated bytes and generated UUID paths.
+
+Uploads check document edit access before reservation and registration; account quotas are 100 artifacts/100 MiB, each at most 2 MiB. Idempotency binds account, document and content hash. A 10-minute expiry, 30-second lease and conditional registration protect concurrent retries. Expired abandoned uploads are cleaned by the existing authenticated cleanup cron; registered artifacts survive late duplicate uploads. Existing saved-media namespaces/playback are preserved. Migration `0024_generated_images.sql`, its snapshot and journal are local-only and have not been applied remotely.
+
+Each cleanup invocation transitions at most 100 expired, unleased uploads and attempts at most three distinct abandoned objects. A persisted circular keyset cursor advances under a short database write transaction before each storage removal; removals run outside the lock and independent failures do not stop the sweep. The existing private-store timeout remains 10 seconds per removal. Tombstones remain indefinitely to reject expired upload identities and revisit paths after late uploads. A finite abandoned set receives fair repeat attempts across process restarts; this does not establish hosted cron or actual bucket behavior. Migration `0033_generated_image_cleanup_cursor.sql` adds only retry progress and its index, and remains local-only.
+
+Saved-image delivery follows the current live document ACL, including anonymous readers of nonprivate documents. Anonymous private, missing, deleted or unregistered images return 404. Supplied invalid Authorization remains 401 even with a valid cookie. The backing bucket remains private; delivery returns validated PNG bytes with private no-store headers and rechecks document access and registration after storage reads. Generation eligibility and credits do not gate saved-image reads.
+
+Completed images remain in browser memory and native protected files/memory after sync failure. Retry uploads the same safe output without generation or debit, including after key removal. Explicit expiry renews only upload identity. Native files are account/document scoped, use complete protection and are excluded from backup. Web editor insertion and saved covers use registered image URLs; native document insertion uses the existing image node.
+
+## Verification scope
+
+Tests and UI fixtures use isolated SQLite, injected provider/storage/authentication and unexpected-network rejection. The web fixture drives the production image hook, quote dialog, Lexical image node and saved document JSON. The native harness uses the production composer, native transport, editor insertion and the same isolated ledger/artifact service. The unsigned simulator uses a native in-memory fake key; its fixture PNG is packaged as binary bytes to prevent Xcode PNG rewriting. Physical-device generation and actual authenticated provider generation are not claimed. Evidence is fixture provenance only, never a successful actual-service claim. The result JSON records exact checks and any remaining UI criteria.

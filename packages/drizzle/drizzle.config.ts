@@ -1,3 +1,4 @@
+import "./src/generation/kit-generation-policy.js";
 import type { Config } from "drizzle-kit";
 import env from "@packages/env";
 export default {

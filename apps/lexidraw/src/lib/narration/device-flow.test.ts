@@ -1,0 +1,793 @@
+import { expect, spyOn, test } from "bun:test";
+import { createByokSession } from "../byok/session";
+import { DeviceNarration } from "./device-flow";
+
+test("completed local chunks survive removal and reopening; resume needs a fresh key and sync retry never regenerates", async () => {
+  let calls = 0,
+    failed = true;
+  const session = createByokSession(
+    async () => {
+      calls++;
+      if (calls === 1) session.remove();
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  const disk = new Map<string, string>();
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok: session,
+    store: {
+      load: async (scope: string) => disk.get(scope) ?? null,
+      save: async (scope: string, data: string, expected: string | null) => {
+        if ((disk.get(scope) ?? null) !== expected) return false;
+        disk.set(scope, data);
+        return true;
+      },
+      clear: async (scope: string) => {
+        disk.delete(scope);
+      },
+    },
+    sync: async () => {
+      if (failed) throw new Error("storage outage");
+      return "saved";
+    },
+  };
+  session.replace("openrouter", "sk-or-v1-FIRST-NARRATION-ONLY");
+  const first = new DeviceNarration("alice", "doc", ports);
+  await first.start("a".repeat(501));
+  expect(
+    first.state()?.parts.filter((p) => p.kind === "completed"),
+  ).toHaveLength(1);
+  expect(calls).toBe(1);
+  const reopened = new DeviceNarration("alice", "doc", ports);
+  await reopened.restore();
+  await reopened.resume();
+  expect(calls).toBe(1);
+  session.replace("openrouter", "sk-or-v1-SECOND-NARRATION-ONLY");
+  await reopened.resume();
+  expect(calls).toBe(2);
+  session.remove();
+  await reopened.sync();
+  expect(reopened.state()?.status).toBe("sync_failed");
+  failed = false;
+  await reopened.sync();
+  expect(reopened.state()?.status).toBe("saved");
+  expect(calls).toBe(2);
+  expect(Array.from(disk.values()).join()).not.toContain("sk-or-v1");
+});
+
+test("interrupted provider outcomes survive restart without replay and recovered metadata cannot leak a retired opaque key", async () => {
+  let calls = 0;
+  const disk = new Map<string, string>();
+  const network = async () => {
+    calls++;
+    throw new Error("connection lost after dispatch");
+  };
+  const session = createByokSession(network, "https://app.test", {
+    narrationFixture: true,
+  });
+  const opaque = "opaque-device-secret-286";
+  session.replace("openrouter", opaque);
+  const store = {
+    load: async (s: string) => disk.get(s) ?? null,
+    save: async (s: string, d: string, expected: string | null) => {
+      if ((disk.get(s) ?? null) !== expected) return false;
+      disk.set(s, d);
+      return true;
+    },
+    clear: async (s: string) => {
+      disk.delete(s);
+    },
+  };
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok: session,
+    store,
+    sync: async () => "saved",
+  });
+  await flow.start("A page.");
+  expect(flow.state()?.status).toBe("unknown");
+  const newSession = createByokSession(network, "https://app.test", {
+    narrationFixture: true,
+  });
+  newSession.replace("openrouter", "another-opaque-device-secret");
+  const recovered = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok: newSession,
+    store,
+    sync: async () => "saved",
+  });
+  await recovered.restore();
+  await recovered.resume();
+  expect(calls).toBe(1);
+  const scope = JSON.stringify(["alice", "doc"]),
+    value = JSON.parse(disk.get(scope) ?? "{}");
+  value.parts[0].text = btoa(encodeURIComponent(opaque));
+  disk.set(scope, JSON.stringify(value));
+  await expect(recovered.restore()).rejects.toThrow(
+    "Credential egress blocked",
+  );
+});
+
+test("expired sync authorization rotates only upload identity and does not regenerate completed audio", async () => {
+  const ids: string[] = [];
+  let calls = 0;
+  let disk: string | null = null;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "opaque-expiry-narration-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_s: string, d: string, e: string | null) => {
+        if (e !== disk) return false;
+        disk = d;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async (id) => {
+      ids.push(id);
+      if (ids.length === 1)
+        throw new Error("Upload expired. Retry retained audio.");
+      return "saved";
+    },
+  });
+  await flow.start("Hello");
+  byok.remove();
+  await flow.sync();
+  await flow.sync();
+  expect(ids[0]).not.toBe(ids[1]);
+  expect(calls).toBe(1);
+  expect(flow.state()?.status).toBe("saved");
+});
+
+test("two device controllers cannot race local job creation into duplicate provider billing", async () => {
+  let calls = 0,
+    release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      await gate;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "opaque-concurrent-narration-key");
+  let disk: string | null = null;
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_s: string, data: string, expected?: string | null) => {
+        if (expected !== undefined && expected !== disk) return false;
+        disk = data;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  };
+  const first = new DeviceNarration("alice", "doc", ports),
+    second = new DeviceNarration("alice", "doc", ports);
+  const starting = Promise.allSettled([
+    first.start("Hello"),
+    second.start("Hello"),
+  ]);
+  await Bun.sleep(25);
+  try {
+    expect(calls).toBe(1);
+  } finally {
+    release();
+    await starting;
+  }
+});
+
+test("confirmed late output resolves its original local fence even when another controller restored uncertainty", async () => {
+  let calls = 0,
+    release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      await gate;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "opaque-late-narration-key");
+  let disk: string | null = null;
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_s: string, d: string, e: string | null) => {
+        if (e !== disk) return false;
+        disk = d;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  };
+  const first = new DeviceNarration("alice", "doc", ports),
+    second = new DeviceNarration("alice", "doc", ports);
+  const running = first.start("Hello");
+  while (calls === 0) await Bun.sleep(1);
+  await second.restore();
+  release();
+  await running;
+  const third = new DeviceNarration("alice", "doc", ports);
+  await third.restore();
+  expect(third.state()?.parts[0]?.kind).toBe("completed");
+  expect(calls).toBe(1);
+});
+
+test("restored jobs cannot enlarge the bounded document before device dispatch", async () => {
+  let calls = 0;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      throw new Error("unexpected");
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "opaque-input-bound-narration-key");
+  let data = JSON.stringify({
+    version: 1,
+    fingerprints: byok.fingerprints(),
+    account: "alice",
+    documentId: "doc",
+    id: "tampered",
+    created: Date.now(),
+    status: "paused",
+    parts: Array.from({ length: 8 }, () => ({
+      kind: "pending",
+      text: "😀".repeat(500),
+    })),
+  });
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => data,
+      save: async (_s: string, d: string) => {
+        data = d;
+        return true;
+      },
+      clear: async () => {},
+    },
+    sync: async () => "saved",
+  });
+  await expect(flow.restore()).rejects.toThrow();
+  expect(calls).toBe(0);
+});
+
+test("account change clears old local scope and blocks generation and sync on the old controller", async () => {
+  let account: string | undefined = "alice",
+    disk: string | null = null,
+    calls = 0,
+    syncs = 0;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "opaque-account-scope-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => account,
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_s: string, d: string, e: string | null) => {
+        if (disk !== e) return false;
+        disk = d;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => {
+      syncs++;
+      return "saved";
+    },
+  });
+  await flow.start("Hello");
+  account = "bob";
+  await expect(flow.sync()).rejects.toThrow("Account session ended");
+  expect(flow.state() === null).toBe(true);
+  expect(disk).toBeNull();
+  expect(calls).toBe(1);
+  expect(syncs).toBe(0);
+});
+
+test("capability refresh blocks new narration without losing completed playback or sync", async () => {
+  let calls = 0;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "sk-or-v1-CAPABILITY-FIXTURE");
+  let disk: string | null = null;
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_scope: string, value: string) => {
+        disk = value;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  };
+  const flow = new DeviceNarration("alice", "doc", ports);
+  await flow.start("Hello");
+  const retained = flow.state();
+  flow.configure({ ...ports, available: () => false });
+  expect(flow.state()).toBe(retained);
+  await flow.start("Another paid narration");
+  expect(calls).toBe(1);
+  await flow.sync();
+  expect(flow.state()?.status).toBe("saved");
+  expect(calls).toBe(1);
+});
+
+test("finalized recording keeps its canonical server receipt across reopening", async () => {
+  const session = createByokSession(
+    async () =>
+      new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      }),
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-canonical-recording-reference");
+  const disk = new Map<string, string>();
+  const ports = {
+    account: () => "fixture-a",
+    available: () => true,
+    byok: session,
+    store: {
+      load: async (scope: string) => disk.get(scope) ?? null,
+      save: async (scope: string, data: string, expected: string | null) => {
+        if ((disk.get(scope) ?? null) !== expected) return false;
+        disk.set(scope, data);
+        return true;
+      },
+      clear: async (scope: string) => {
+        disk.delete(scope);
+      },
+    },
+    sync: async () => "server-canonical-recording",
+  };
+  const first = new DeviceNarration("fixture-a", "fixture-d", ports);
+  await first.start("Saved recording");
+  const local = first.state()?.id;
+  await first.sync();
+  const reopened = new DeviceNarration("fixture-a", "fixture-d", ports);
+  await reopened.restore();
+  expect(reopened.state()).toMatchObject({
+    id: local,
+    status: "saved",
+    recordingId: "server-canonical-recording",
+  });
+});
+
+test("a quarantined malformed paid fence cannot be overwritten by a new narration dispatch", async () => {
+  let calls = 0;
+  const session = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-quarantined-narration-reference");
+  const original = JSON.stringify({
+    version: 1,
+    account: "fixture-a",
+    documentId: "fixture-d",
+    id: "original-paid-fence",
+    created: Date.now(),
+    status: "saved",
+    parts: [{ kind: "started", text: "Original request", unexpected: true }],
+  });
+  let retained = original;
+  const flow = new DeviceNarration("fixture-a", "fixture-d", {
+    account: () => "fixture-a",
+    available: () => true,
+    byok: session,
+    store: {
+      load: async () => retained,
+      save: async (_scope, data, expected) => {
+        if (retained !== expected) return false;
+        retained = data;
+        return true;
+      },
+      clear: async () => {},
+    },
+    sync: async () => "unused",
+  });
+  await expect(flow.restore()).rejects.toThrow();
+  await flow.start("Replacement must remain blocked");
+  expect(calls).toBe(0);
+  expect(retained).toBe(original);
+});
+
+test("key rotation while completed audio is persisted pauses the original resume before the next part", async () => {
+  let calls = 0,
+    disk: string | null = null,
+    rotated = false;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "synthetic-original-resume-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_, data, expected) => {
+        if (disk !== expected) return false;
+        disk = data;
+        if (!rotated && data.includes('"kind":"completed"')) {
+          rotated = true;
+          byok.replace("openrouter", "synthetic-replacement-resume-key");
+        }
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  });
+  await flow.start("a".repeat(501));
+  expect(calls).toBe(1);
+  expect(flow.state()?.status).toBe("paused");
+  expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+    "completed",
+    "pending",
+  ]);
+  await flow.resume();
+  expect(calls).toBe(2);
+  expect(flow.state()?.status).toBe("completed");
+  expect(disk).not.toContain("synthetic-original-resume-key");
+  expect(disk).not.toContain("synthetic-replacement-resume-key");
+});
+
+test("unmount Stop during narration admission retains pending parts without dispatch", async () => {
+  let stored: string | null = null,
+    reached = () => {},
+    release = () => {},
+    calls = 0;
+  const gate = new Promise<void>((r) => {
+      release = r;
+    }),
+    waiting = new Promise<void>((r) => {
+      reached = r;
+    });
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "synthetic-stopped-narration-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => stored,
+      save: async (_, data, expected) => {
+        if (expected !== stored) return false;
+        stored = data;
+        if (
+          data.includes('"status":"paused"') &&
+          data.includes('"kind":"pending"')
+        ) {
+          reached();
+          await gate;
+        }
+        return true;
+      },
+      clear: async () => {
+        stored = null;
+      },
+    },
+    sync: async () => "saved",
+  });
+  const running = flow.start("Retain this narration");
+  await waiting;
+  flow.stop();
+  release();
+  await running;
+  expect(calls).toBe(0);
+  expect(flow.state()?.parts[0]?.kind).toBe("pending");
+  await flow.resume();
+  expect(calls).toBe(1);
+});
+
+test("old same-account session cannot publish late audio or delete a newer checkpoint", async () => {
+  let generation = 1;
+  let release = () => {};
+  let entered = () => {};
+  const dispatched = new Promise<void>((r) => {
+    entered = r;
+  });
+  const wait = new Promise<void>((r) => {
+    release = r;
+  });
+  const session = createByokSession(
+    async () => {
+      entered();
+      await wait;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-old-generation-narration-key");
+  let stored: string | null = null;
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    session: () => generation,
+    available: () => true,
+    byok: session,
+    store: {
+      load: async () => stored,
+      save: async (_scope, data, expected) => {
+        if (expected !== stored) return false;
+        stored = data;
+        return true;
+      },
+      clear: async (_scope, expected) => {
+        if (expected === undefined || stored === expected) stored = null;
+      },
+    },
+    sync: async () => "receipt",
+  });
+  const running = flow.start("Old audio").catch(() => {});
+  await dispatched;
+  generation = 2;
+  release();
+  await running;
+  expect(flow.state()).toBeNull();
+  stored = "new-generation-checkpoint";
+  await flow.end();
+  expect(stored).toBe("new-generation-checkpoint");
+});
+
+test("E1 Resume after days retains original completed audio and synthesizes only pending parts", async () => {
+  const clock = spyOn(Date, "now").mockReturnValue(259_200_000);
+  try {
+    const requests: string[] = [];
+    const byok = createByokSession(
+      async (request) => {
+        requests.push(JSON.parse(await new Request(request).text()).input);
+        return new Response(new Uint8Array(48000), {
+          headers: { "Content-Type": "audio/pcm" },
+        });
+      },
+      "https://app.test",
+      { narrationFixture: true },
+    );
+    byok.replace("openrouter", "synthetic-later-continuation-reference");
+    const { audioFromPCM } = await import("./portable");
+    const retained = {
+      kind: "completed" as const,
+      text: "Retained chapter",
+      ...audioFromPCM(new Uint8Array(48000), () => {}),
+    };
+    let disk = JSON.stringify({
+      version: 1,
+      fingerprints: [],
+      account: "alice",
+      documentId: "doc",
+      id: "original-checkpoint",
+      created: 1000,
+      status: "paused",
+      parts: [retained, { kind: "pending", text: "Remaining chapter" }],
+    });
+    const flow = new DeviceNarration("alice", "doc", {
+      account: () => "alice",
+      available: () => true,
+      byok,
+      store: {
+        load: async () => disk,
+        save: async (_scope, data, expected) => {
+          if (disk !== expected) return false;
+          disk = data;
+          return true;
+        },
+        clear: async () => {},
+      },
+      sync: async () => "unused",
+    });
+    await flow.restore();
+    const progress: string[] = [];
+    const unsubscribe = flow.subscribe(() =>
+      progress.push(flow.state()?.status ?? "empty"),
+    );
+    await flow.resume();
+    unsubscribe();
+    expect(flow.state()).toMatchObject({
+      id: "original-checkpoint",
+      created: 1000,
+      status: "completed",
+    });
+    expect(flow.state()?.parts[0]).toEqual(retained);
+    expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+      "completed",
+      "completed",
+    ]);
+    expect(requests).toEqual(["Remaining chapter"]);
+    expect(progress).toContain("running");
+    expect(progress.at(-1)).toBe("completed");
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("E1 active continuation pauses at twenty minutes and explicit Resume renews the bound", async () => {
+  let now = 259_200_000;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const requests: string[] = [];
+    const byok = createByokSession(
+      async (request) => {
+        requests.push(JSON.parse(await new Request(request).text()).input);
+        if (requests.length === 1) now += 1_200_000;
+        return new Response(new Uint8Array(48000), {
+          headers: { "Content-Type": "audio/pcm" },
+        });
+      },
+      "https://app.test",
+      { narrationFixture: true },
+    );
+    byok.replace("openrouter", "synthetic-bounded-continuation-reference");
+    const { audioFromPCM } = await import("./portable");
+    const retained = {
+      kind: "completed" as const,
+      text: "Retained chapter",
+      ...audioFromPCM(new Uint8Array(48000), () => {}),
+    };
+    let disk = JSON.stringify({
+      version: 1,
+      fingerprints: [],
+      account: "alice",
+      documentId: "doc",
+      id: "bounded-checkpoint",
+      created: 1000,
+      status: "paused",
+      parts: [
+        retained,
+        { kind: "pending", text: "Middle chapter" },
+        { kind: "pending", text: "Last chapter" },
+      ],
+    });
+    let delayDispatch = false;
+    const flow = new DeviceNarration("alice", "doc", {
+      account: () => "alice",
+      available: () => true,
+      byok,
+      store: {
+        load: async () => disk,
+        save: async (_scope, data, expected) => {
+          if (disk !== expected) return false;
+          disk = data;
+          if (delayDispatch && JSON.parse(data).parts[2].kind === "started") {
+            delayDispatch = false;
+            now += 1_200_000;
+          }
+          return true;
+        },
+        clear: async () => {},
+      },
+      sync: async () => "unused",
+    });
+    await flow.restore();
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter"]);
+    expect(flow.state()?.status).toBe("paused");
+    expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+      "completed",
+      "completed",
+      "pending",
+    ]);
+    const middle = flow.state()?.parts[1];
+    now += 86_400_000;
+    delayDispatch = true;
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter"]);
+    expect(flow.state()?.status).toBe("paused");
+    expect(flow.state()?.parts[2]?.kind).toBe("pending");
+    now += 86_400_000;
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter", "Last chapter"]);
+    expect(flow.state()?.status).toBe("completed");
+    expect(flow.state()?.id).toBe("bounded-checkpoint");
+    expect(flow.state()?.created).toBe(1000);
+    expect(flow.state()?.parts[0]).toEqual(retained);
+    expect(flow.state()?.parts[1]).toEqual(middle);
+  } finally {
+    clock.mockRestore();
+  }
+});

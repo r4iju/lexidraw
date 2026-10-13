@@ -1,17 +1,20 @@
+import { useSendQuery, DOCUMENT_ACTION_GUIDANCE } from "../use-send-query";
+import Link from "next/link";
+import { useEntityId } from "~/hooks/use-entity-id";
 import type React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
-import { MessageInput } from "./message-input";
+import { ChatComposer } from "./chat-composer";
 import { Reset } from "./reset";
 import { useChatState } from "../llm-chat-context";
 import { DebugPanel } from "./debug-panel";
-import { AgentSettings } from "./agent-settings";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { useDeveloperFlag } from "~/lib/developer-flag";
 
 export const Sidebar: React.FC = () => {
   const { mode: chosen } = useChatState();
+  const documentId = useEntityId();
   const developer = useDeveloperFlag();
+  const send = useSendQuery();
   const mode = chosen === "debug" && !developer ? "chat" : chosen;
 
   return (
@@ -21,19 +24,21 @@ export const Sidebar: React.FC = () => {
         <Reset />
       </div>
       {mode === "debug" && <DebugPanel />}
-      {mode === "agent" && (
-        <>
-          <ScrollArea className="flex-1 w-full">
-            <AgentSettings />
-            <MessageList />
-          </ScrollArea>
-          <MessageInput />
-        </>
+      {chosen !== "chat" && (
+        <div className="space-y-3 p-4">
+          <p>{DOCUMENT_ACTION_GUIDANCE}</p>
+          <Link href={`/documents/${encodeURIComponent(documentId)}/agent`}>
+            Open document action
+          </Link>
+        </div>
       )}
       {mode === "chat" && (
         <>
           <MessageList />
-          <MessageInput />
+          <ChatComposer send={send} />
+          <Link className="p-3" href="/settings#settings-ai-power">
+            Manage AI Power
+          </Link>
         </>
       )}
     </div>

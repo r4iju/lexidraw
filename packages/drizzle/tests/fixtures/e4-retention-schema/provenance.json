@@ -1,0 +1,16 @@
+{
+  "sourcePin": "21a68d1b90ac9b7c03acdd30cae2f58787f2687a",
+  "modernSeed": "Copied byte-exact from accepted atomic full-journal verification fixture.ts; mechanically extracted there from modern-baseline-migrations.test.ts. Modeled modern0014 generic checkpoint, not historical replay.",
+  "priorLedger": "Literal hash/timestamp oracle from accepted expected-journal.json pending tail, original journal order including nonmonotonic0028.",
+  "sourceArtifact": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/atomic-full-journal-verification-v1/fixture.ts",
+  "sourceSHA256": "3368429650af026017be68a36e59b9ba55d44f632b804a4fe9a8c88a31695c10",
+  "initialReceipt": {
+    "hash": "78ab410710c6ad4e7969c31273fccb3e8f226c2fa8ad7ad94b7e20c0b7e6c54c",
+    "created_at": 1761866938152
+  },
+  "sourceRowCount": 7,
+  "priorPendingEntries": 13,
+  "priorPendingSplits": 60,
+  "newJournalIndex": 35,
+  "newTimestamp": 1791698049491
+}

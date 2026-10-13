@@ -607,3 +607,28 @@ describe("whether the editor is saving", () => {
     expect(told).toBe(0);
   });
 });
+
+test("coalesced image save receipt identifies the actual stored JSON and revision", async () => {
+  const empty = '{"root":{"children":[]}}';
+  const image =
+    '{"root":{"children":[{"type":"image","src":"/api/generated-images/owned"}]}}';
+  const { srv, sync } = setup(rev(1, empty), editor(empty, true));
+  srv.state.held = [];
+  const first = sync.save({ elements: empty });
+  const insertion = sync.save({ elements: image }, { receipt: true });
+  const removal = sync.save({ elements: empty });
+  srv.release();
+  await first;
+  await flush();
+  srv.release();
+  await removal;
+  const receipt = await insertion;
+  expect(receipt).toEqual({
+    kind: "saved",
+    revision: rev(3, empty).updatedAt,
+    elements: empty,
+  });
+  expect(receipt.kind).toBe("saved");
+  if (receipt.kind === "saved")
+    expect(JSON.parse(receipt.elements).root.children).toEqual([]);
+});

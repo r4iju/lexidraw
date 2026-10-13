@@ -1,0 +1,111 @@
+import Foundation
+import Synchronization
+import Testing
+@testable import LexidrawKit
+private final class AgentKey: TokenStore, @unchecked Sendable {
+ var value: String?
+ func load() throws -> String? { value }
+ func save(_ token: String) throws { value = token }
+ func delete() throws { value = nil }
+}
+private final class AgentProvider: URLProtocol, @unchecked Sendable {
+ static let requests = Mutex<[URLRequest]>([])
+ override class func canInit(with request: URLRequest) -> Bool { true }
+ override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+ override func startLoading() {
+  let count = Self.requests.withLock { $0.append(request); return $0.count }
+  let output = count == 1 ? #"{"edits":["Add paragraph"]}"# : count == 2 ? #"{"kind":"append","text":"Native saved edit"}"# : #"{"kind":"done"}"#
+  let data = try! JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": output]]]])
+  client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type":"application/json"])!, cacheStoragePolicy: .notAllowed)
+  client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+ }
+ override func stopLoading() {}
+}
+@Suite(.serialized) @MainActor struct DeviceAgentTests {
+ @Test func sharedJavaScriptOrchestrationDirectProviderAndKeyFreeDocumentEdit() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("opaque-native-agent-fixture-288")
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  var mutations: [NativeDeviceMutation] = []
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: directory, available: true, read: { .init(revision: 1, text: "Existing") }, apply: { input in mutations.append(input); return .init(revision: 2, description: "Native saved edit") })
+  try await flow.start(prompt: "Add paragraph")
+  #expect(flow.checkpoint?.status == "complete")
+  #expect(flow.checkpoint?.receipts.count == 1)
+  #expect(mutations.count == 1)
+  for request in AgentProvider.requests.withLock({ $0 }) {
+   #expect(request.url?.absoluteString == "https://openrouter.ai/api/v1/chat/completions")
+   #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer opaque-native-agent-fixture-288")
+   #expect(request.value(forHTTPHeaderField: "Cookie") == nil)
+   #expect(!String(decoding: request.httpBody ?? Data(), as: UTF8.self).contains("opaque-native-agent-fixture-288"))
+  }
+  try runtime.removeKey()
+  let restored = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: directory, available: true, read: { .init(revision: 1, text: "Existing") }, apply: { _ in Issue.record("Duplicate edit"); return .init(revision: 3, description: "duplicate") })
+  try restored.restore(); try await restored.resume()
+  #expect(restored.checkpoint?.receipts.count == 1)
+  #expect(AgentProvider.requests.withLock { $0.count } == 3)
+ }
+ @Test func replacingKeyDuringDocumentReadCannotStartOldAction() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("opaque-native-read-old-288")
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: directory, available: true, read: {
+   try runtime.removeKey(); try runtime.replaceKey("opaque-native-read-new-288")
+   return .init(revision: 1, text: "Existing")
+  }, apply: { _ in Issue.record("Unexpected mutation"); return .init(revision: 2, description: "unexpected") })
+  try await flow.start(prompt: "Add paragraph")
+  #expect(flow.checkpoint == nil)
+  #expect(AgentProvider.requests.withLock { $0.isEmpty })
+ }
+
+}
+
+extension DeviceAgentTests {
+ @Test func stoppingWhileSourceReadIsSuspendedCannotPersistOrDispatch() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("opaque-native-stop-read-288")
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  var reply: CheckedContinuation<NativeDeviceDocument, Never>?
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: directory, available: true, read: {
+   await withCheckedContinuation { reply = $0 }
+  }, apply: { _ in Issue.record("Edit after Stop"); return .init(revision: 2, description: "unexpected") })
+  let start = Task { try await flow.start(prompt: "Add paragraph") }
+  while reply == nil { await Task.yield() }
+  flow.stop()
+  reply?.resume(returning: .init(revision: 1, text: "Existing"))
+  try await start.value
+  #expect(flow.checkpoint == nil)
+  #expect(AgentProvider.requests.withLock { $0.isEmpty })
+  #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "agent.json").path))
+ }
+}
+
+extension DeviceAgentTests {
+ @Test func provenScopedLegacyActionRetainsItsSavedReceiptsWithoutProviderReplay() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("synthetic-proven-legacy-agent-key")
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let legacy = root.appending(path: "authenticated-session-root/legacy")
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: legacy, available: true, read: { .init(revision: 1, text: "Original") }, apply: { _ in .init(revision: 2, description: "Native saved edit") })
+  try await flow.start(prompt: "Add paragraph")
+  let bytes = try Data(contentsOf: legacy.appending(path: "agent.json"))
+  try runtime.removeKey()
+  let owner = try NativeArtifactOwner(origin: URL(string: "https://app.test")!, account: "alice", document: "doc", namespace: "agent-v2")
+  let migrated = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: root.appending(path: "canonical"), owner: owner, legacyDirectory: legacy, read: { throw NativeAIError.unavailable }, apply: { _ in throw NativeAIError.unavailable })
+  try migrated.restore(); try await migrated.resume()
+  #expect(migrated.checkpoint?.receipts.count == 1)
+  #expect(AgentProvider.requests.withLock { $0.count } == 3)
+  #expect(try Data(contentsOf: legacy.appending(path: "agent.json")) == bytes)
+ }
+}

@@ -1,0 +1,316 @@
+import { supplierFixture } from "~/test/supplier-fixture";
+import { expect, test } from "bun:test";
+import { createClient } from "@libsql/client";
+import { ProLedger } from "./ledger";
+import { IMAGE_FIXTURE_PRICEBOOK } from "~/lib/images/contracts";
+import { ProImageOperation } from "./image-operation";
+import { fixtureImage } from "~/test/image-fixture";
+async function fixture() {
+  const client = createClient({ url: ":memory:" });
+  for (const migration of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+    "0030_apple_sandbox",
+  ])
+    await client.executeMultiple(
+      (
+        await Bun.file(`../../packages/drizzle/drizzle/${migration}.sql`).text()
+      ).replaceAll("--> statement-breakpoint", ""),
+    );
+  const ledger = new ProLedger(client, {
+    ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    imageBook: () => IMAGE_FIXTURE_PRICEBOOK,
+    now: () => 1000,
+  });
+  await ledger.grantEligibility("owner", "alice", "image fixture");
+  await ledger.grantPeriod("owner", {
+    accountId: "alice",
+    eventId: "image",
+    startsAt: 1000,
+    endsAt: 2000,
+    subcredits: 1_000_000_000,
+    reason: "fixture",
+    environment: "test",
+  });
+  return { client, ledger };
+}
+test("image action requires accepted maximum; durable image completion wins losing refund and replay never regenerates", async () => {
+  const { client, ledger } = await fixture();
+  let calls = 0;
+  const executor = new ProImageOperation(
+    ledger,
+    IMAGE_FIXTURE_PRICEBOOK,
+    async () => {
+      calls++;
+      expect((await ledger.status("alice")).reservedSubcredits).toBe(
+        60_000_000,
+      );
+      return {
+        kind: "completed",
+        completion: {
+          kind: "image",
+          image: fixtureImage(),
+          usage: {
+            inputTokens: 10,
+            thinkingTokens: 20,
+            textOutputTokens: 5,
+            outputImages: 1,
+          },
+          actualCostNanoUsd: 134_035_000,
+        },
+      };
+    },
+  );
+  try {
+    await expect(
+      executor.start("alice", {
+        idempotencyKey: "declined",
+        prompt: "tree",
+        acceptedMaximum: 0,
+      }),
+    ).rejects.toThrow("Accept the maximum");
+    expect(calls).toBe(0);
+    const result = await executor.start("alice", {
+      idempotencyKey: "one",
+      prompt: "tree",
+      acceptedMaximum: 60_000_000,
+    });
+    expect(result).toMatchObject({
+      state: "settled",
+      quote: 60_000_000,
+      charged: 44_678_334,
+      feature: "image",
+    });
+    expect(JSON.parse(result.result ?? "null")).toMatchObject({
+      mimeType: "image/png",
+      width: 1024,
+      height: 1024,
+    });
+    expect(
+      await ledger.settle(result.id, { kind: "technical_failure" }),
+    ).toMatchObject({ state: "settled", charged: 44_678_334 });
+    expect(
+      await executor.start("alice", {
+        idempotencyKey: "one",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+      }),
+    ).toMatchObject({ id: result.id });
+    expect(calls).toBe(1);
+    await executor.start("alice", {
+      idempotencyKey: "regenerate",
+      prompt: "tree",
+      acceptedMaximum: 60_000_000,
+    });
+    expect(calls).toBe(2);
+    await expect(
+      executor.start("alice", {
+        idempotencyKey: "large",
+        prompt: "😀".repeat(376),
+        acceptedMaximum: 60_000_000,
+      }),
+    ).rejects.toThrow("bounded prompt");
+    await expect(
+      executor.start("alice", {
+        idempotencyKey: "config",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+        model: "arbitrary",
+      } as never),
+    ).rejects.toThrow();
+  } finally {
+    client.close();
+  }
+});
+
+test("incomplete modality rate snapshot fails before reserving or dispatching paid work", async () => {
+  const { client, ledger } = await fixture();
+  try {
+    expect(
+      () =>
+        new ProImageOperation(
+          ledger,
+          { ...IMAGE_FIXTURE_PRICEBOOK, quote: 1 },
+          async () => {
+            throw new Error("must not dispatch");
+          },
+        ),
+    ).toThrow();
+    expect((await ledger.status("alice")).reservedSubcredits).toBe(0);
+  } finally {
+    client.close();
+  }
+});
+
+test("image customer rate snapshot cannot change inside an entitlement period", async () => {
+  const { client, ledger } = await fixture();
+  try {
+    await ledger.reserve(
+      "alice",
+      "first",
+      "first",
+      "image",
+      IMAGE_FIXTURE_PRICEBOOK,
+    );
+    await expect(
+      ledger.reserve("alice", "changed", "changed", "image", {
+        ...IMAGE_FIXTURE_PRICEBOOK,
+        version: "changed",
+      }),
+    ).rejects.toThrow("period");
+  } finally {
+    client.close();
+  }
+});
+
+test("a changed image adapter continues serving the period's accepted customer book", async () => {
+  const { client, ledger } = await fixture();
+  const transport = async () => ({
+    kind: "failed" as const,
+    actualCostNanoUsd: 7,
+  });
+  try {
+    const initial = new ProImageOperation(
+      ledger,
+      IMAGE_FIXTURE_PRICEBOOK,
+      transport,
+    );
+    await initial.start("alice", {
+      idempotencyKey: "pin",
+      prompt: "tree",
+      acceptedMaximum: 60_000_000,
+    });
+    const updated = new ProImageOperation(
+      ledger,
+      {
+        ...IMAGE_FIXTURE_PRICEBOOK,
+        version: "fixture-image-v2",
+        creditNanoUsd: 1_500_000,
+        quote: 120_000_000,
+      },
+      transport,
+    );
+    expect(
+      await updated.start("alice", {
+        idempotencyKey: "after-update",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+      }),
+    ).toMatchObject({ quote: 60_000_000, state: "refunded" });
+    expect(
+      await updated.start("alice", {
+        idempotencyKey: "pin",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+      }),
+    ).toMatchObject({ state: "refunded" });
+    expect(await ledger.status("alice")).toMatchObject({
+      availableSubcredits: 1_000_000_000,
+      providerCosts: { knownNanoUsd: 14 },
+    });
+  } finally {
+    client.close();
+  }
+});
+
+test("authenticated first image quote uses the creation schedule while higher supplier image costs have their own admitted contract", async () => {
+  const { mock } = await import("bun:test");
+  mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
+  const { installServerRuntime } = await import("~/test/server-runtime");
+  const db = await installServerRuntime();
+  const { createImagePowerRouter } = await import("../api/routers/image-power");
+  const { client, ledger } = await fixture();
+  const changed = {
+    ...IMAGE_FIXTURE_PRICEBOOK,
+    version: "new-customer",
+    creditNanoUsd: 1500000,
+    quote: 120000000,
+  };
+  ledger.config.imageBook = () => changed;
+  ledger.config.supplierBooks = () => ({
+    ...supplierFixture(),
+    image: {
+      ...IMAGE_FIXTURE_PRICEBOOK,
+      version: "supplier-image-v2",
+      model: "synthetic-image-v2",
+      outputImageNanoUsd: 268000000,
+      maximumNanoUsd: 314000000,
+      quote: 104666667,
+    },
+  });
+  const executor = new ProImageOperation(
+    ledger,
+    changed,
+    async (_text, _signal, scope) => {
+      expect(scope.supplier.maximumNanoUsd).toBe(314000000);
+      expect(scope.supplier.book.model).toBe("synthetic-image-v2");
+      return {
+        kind: "completed",
+        completion: {
+          kind: "image",
+          image: fixtureImage(),
+          usage: {
+            inputTokens: 0,
+            thinkingTokens: 0,
+            textOutputTokens: 0,
+            outputImages: 1,
+          },
+          actualCostNanoUsd: 268000000,
+        },
+      };
+    },
+  );
+  const router = createImagePowerRouter({
+    executor,
+    images: () => {
+      throw new Error("No storage calls");
+    },
+    source: async () => "pro",
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    headers: new Headers(),
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+  } as never);
+  try {
+    expect((await caller.capability()).maximum).toBe(60000000);
+    const op = await caller.generate({
+      idempotencyKey: "first-configured",
+      prompt: "tree",
+      acceptedMaximum: 60000000,
+    });
+    expect(op).toMatchObject({ state: "settled", charged: 44666667 });
+    ledger.config.now = () => 2000;
+    await ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "image-renewal",
+      startsAt: 2000,
+      endsAt: 3000,
+      subcredits: 1000000000,
+      reason: "renewal",
+      environment: "test",
+    });
+    expect((await caller.capability()).maximum).toBe(120000000);
+    ledger.config.now = () => 3000;
+    ledger.config.imageBook = undefined;
+    await ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "image-unavailable",
+      startsAt: 3000,
+      endsAt: 4000,
+      subcredits: 1000000000,
+      reason: "unavailable",
+      environment: "test",
+    });
+    ledger.config.imageBook = () => changed;
+    await expect(caller.capability()).rejects.toThrow(
+      "unavailable for this period",
+    );
+    expect((await caller.operation({ id: op.id })).state).toBe("settled");
+  } finally {
+    client.close();
+  }
+});

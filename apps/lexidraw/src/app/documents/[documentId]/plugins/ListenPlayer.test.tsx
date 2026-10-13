@@ -8,20 +8,54 @@ mock.module("next/navigation", () => ({
   usePathname: () => "/documents/1",
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
 }));
-type Part = { index: number; audioUrl: string; text: string };
+type Part = import("~/lib/narration/listen-contracts").ListenSegment;
 /**
  * The document's audio as the server answers it; none until a test sets it,
  * so the player opens on "No audio segments found".
  */
-const server = {
-  status: undefined as string | undefined,
-  segments: undefined as Part[] | undefined,
+type QueryError = (Error & { data?: { code: string } }) | null;
+type ServerFixture = {
+  status: string | undefined;
+  segments: Part[] | undefined;
+  version: number;
+  statusError: QueryError;
+  manifestError: QueryError;
+  statusPending: boolean;
+  manifestPending: boolean;
+  listeners: Set<() => void>;
+  set: (next: {
+    status?: string;
+    segments?: Part[];
+    statusError?: QueryError;
+    manifestError?: QueryError;
+    statusPending?: boolean;
+    manifestPending?: boolean;
+  }) => void;
+};
+const server: ServerFixture = {
+  status: undefined,
+  segments: undefined,
+  version: 0,
+  statusError: null,
+  manifestError: null,
+  statusPending: false,
+  manifestPending: false,
   listeners: new Set<() => void>(),
-  set(next: { status?: string; segments?: Part[] }): void {
+  set(next: {
+    status?: string;
+    segments?: Part[];
+    statusError?: (Error & { data?: { code: string } }) | null;
+    manifestError?: (Error & { data?: { code: string } }) | null;
+    statusPending?: boolean;
+    manifestPending?: boolean;
+  }): void {
     Object.assign(server, next);
+    server.version++;
     for (const listener of server.listeners) listener();
   },
 };
+const retryStatus = mock(async () => {}),
+  retryManifest = mock(async () => {});
 const subscribe = (listener: () => void) => {
   server.listeners.add(listener);
   return () => server.listeners.delete(listener);
@@ -38,25 +72,47 @@ mock.module("~/trpc/react", () => ({
       getAudioConfig: { useQuery: () => ({ data: undefined }) },
       updateAudioConfig: { useMutation: () => ({ mutate() {} }) },
     },
+    narration: {
+      capability: {
+        useQuery: () => ({
+          data: { available: false, fixture: false, reason: "Unavailable" },
+          isPending: false,
+        }),
+      },
+      latest: { useQuery: () => ({ data: null, isPending: false }) },
+      quote: { useQuery: () => ({ isPending: true }) },
+      operation: { useQuery: () => ({ isPending: true }) },
+      saved: { useQuery: () => ({ isPending: true }) },
+      generate: { useMutation: () => ({ mutate() {} }) },
+      cancel: { useMutation: () => ({ mutate() {} }) },
+    },
     tts: {
       startDocumentTts: {
         useMutation: () => ({ mutateAsync: async () => ({}) }),
       },
       getDocumentTtsStatus: {
         useQuery: () => {
-          const status = useSyncExternalStore(subscribe, () => server.status);
-          return { data: status ? { status } : undefined };
+          useSyncExternalStore(subscribe, () => server.version);
+          const status = server.status;
+          return {
+            data: status ? { status } : undefined,
+            error: server.statusError,
+            isPending: server.statusPending,
+            isLoading: server.statusPending,
+            refetch: retryStatus,
+          };
         },
       },
       getDocumentTtsManifest: {
         useQuery: () => {
-          const segments = useSyncExternalStore(
-            subscribe,
-            () => server.segments,
-          );
+          useSyncExternalStore(subscribe, () => server.version);
+          const segments = server.segments;
           return {
             data: segments ? { segments } : undefined,
-            refetch: async () => {},
+            refetch: retryManifest,
+            error: server.manifestError,
+            isPending: server.manifestPending,
+            isLoading: server.manifestPending,
           };
         },
       },
@@ -84,8 +140,17 @@ const { ListenPlayer } = await import("./ListenPlayer");
 let unmount: (() => Promise<void>) | undefined;
 afterEach(async () => {
   await unmount?.();
+  retryStatus.mockClear();
+  retryManifest.mockClear();
   unmount = undefined;
-  server.set({ status: undefined, segments: undefined });
+  server.set({
+    status: undefined,
+    segments: undefined,
+    statusError: null,
+    manifestError: null,
+    statusPending: false,
+    manifestPending: false,
+  });
 });
 
 /** The player, opened by a button beside it or an item in a menu. */
@@ -279,4 +344,109 @@ describe("the Listen player", () => {
     expect(playing()).toBe(part(2).audioUrl);
     expect(document.body.textContent).not.toContain("Making the next part…");
   });
+});
+
+test("authoritative same-length replacement and shorter manifest replace old audio", async () => {
+  const first = {
+      index: 0,
+      text: "Old",
+      audioUrl: "https://blob.test/old/0.mp3",
+    },
+    second = {
+      index: 1,
+      text: "Old second",
+      audioUrl: "https://blob.test/old/1.mp3",
+    };
+  server.set({ status: "ready", segments: [first, second] });
+  ({ unmount } = await render(<Page />));
+  await openFromButton();
+  const replacement = {
+    index: 0,
+    text: "New",
+    audioUrl: "https://blob.test/new/0.mp3",
+  };
+  await act(async () =>
+    server.set({
+      segments: [
+        replacement,
+        { ...second, audioUrl: "https://blob.test/new/1.mp3" },
+      ],
+    }),
+  );
+  await settle();
+  expect(document.querySelector("audio")?.getAttribute("src")).toBe(
+    replacement.audioUrl,
+  );
+  await act(async () => server.set({ segments: [] }));
+  await settle();
+  expect(document.querySelector("audio")).toBeNull();
+});
+
+test("status and manifest failures are truthful, retain authorized stale playback, and retry only their read", async () => {
+  server.set({ statusError: new Error("status offline") });
+  ({ unmount } = await render(<Page />));
+  await openFromButton();
+  expect(document.body.textContent).toContain(
+    "Audio status could not be refreshed",
+  );
+  expect(document.body.textContent).not.toContain("No audio segments found");
+  await act(async () => control("Retry audio status")?.click());
+  expect(retryStatus).toHaveBeenCalledTimes(1);
+  expect(retryManifest).toHaveBeenCalledTimes(0);
+  await act(async () =>
+    server.set({ status: "ready", statusError: null, manifestPending: true }),
+  );
+  await settle();
+  expect(document.body.textContent).toContain("Loading audio");
+  expect(document.body.textContent).not.toContain("No audio segments found");
+  await act(async () =>
+    server.set({
+      manifestPending: false,
+      manifestError: new Error("manifest offline"),
+    }),
+  );
+  await settle();
+  expect(document.body.textContent).toContain(
+    "Audio segments could not be refreshed",
+  );
+  expect(document.body.textContent).not.toContain("No audio segments found");
+  const segment = {
+    index: 0,
+    text: "Retained",
+    audioUrl: "https://blob.test/retained/0.mp3",
+  };
+  await act(async () => server.set({ segments: [segment] }));
+  await settle();
+  expect(document.querySelector("audio")?.getAttribute("src")).toBe(
+    segment.audioUrl,
+  );
+  expect(document.body.textContent).toContain("Cached audio may be stale");
+  const reads = retryManifest.mock.calls.length;
+  await act(async () => control("Retry audio segments")?.click());
+  expect(retryManifest.mock.calls.length).toBe(reads + 1);
+  await act(async () =>
+    server.set({
+      manifestError: Object.assign(new Error("forbidden"), {
+        data: { code: "FORBIDDEN" },
+      }),
+    }),
+  );
+  await settle();
+  expect(document.querySelector("audio")).toBeNull();
+  expect(document.body.textContent).toContain(
+    "Audio access could not be confirmed",
+  );
+});
+
+test("malformed manifest cannot become playable media", async () => {
+  server.set({
+    status: "ready",
+    segments: [{ index: 0, text: "Malformed", audioUrl: "" }],
+  });
+  ({ unmount } = await render(<Page />));
+  await openFromButton();
+  expect(document.querySelector("audio")).toBeNull();
+  expect(document.body.textContent).toContain(
+    "Audio segments could not be read safely",
+  );
 });

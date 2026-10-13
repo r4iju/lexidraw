@@ -6,18 +6,19 @@
   "scripts": {
     "build:reference": "bun reference/build.ts",
     "codegen": "bun codegen/write.ts",
-    "test": "bun test ./codegen ./reference && bun run build:reference && swift test",
+    "test": "bun test ./codegen ./reference && bun run build:reference && bun run build:generation && swift test",
     "test:ui": "scripts/test-ui.sh",
     "test:drawing-ui": "scripts/test-drawing-ui.sh",
     "test:browser-ui": "scripts/test-browser-ui.sh",
     "measure:scroll": "scripts/measure-scroll.sh",
     "test:corpus": "bun run build:reference && LEXIDRAW_TOKEN=\"${LEXIDRAW_TOKEN:-$(security find-generic-password -s cli/lexidraw -a prod -w)}\" swift test --filter CorpusTests",
-    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project reference/test && tsgo --noEmit --project recording && tsgo --noEmit --project measure",
+    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project reference/test && tsgo --noEmit --project recording && tsgo --noEmit --project measure && tsgo --noEmit --project generation",
     "lint": "bun x @biomejs/biome check .",
     "record:composition": "TEST_RUNNER_RECORD_COMPOSITION=1 scripts/test-ui.sh -only-testing:EditorUITests/EditorUITests/testJapaneseCompositionSavesWhatTheWebEditorSaves && bun recording/composition.ts",
     "record:drawings": "bun run reference/drawings/record.ts",
     "record:html": "bun reference/record-html.ts",
-    "verify:html-upstream": "bun reference/verify-upstream-html.ts"
+    "verify:html-upstream": "bun reference/verify-upstream-html.ts",
+    "build:generation": "bun generation/build.ts"
   },
   "dependencies": {
     "@lexical/clipboard": "^0.51.0",

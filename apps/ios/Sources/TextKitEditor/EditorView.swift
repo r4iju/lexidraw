@@ -15,6 +15,28 @@ import UniformTypeIdentifiers
 /// selection it replaces, and reaches the model as one `commitComposition`
 /// when it is committed.
 public final class EditorView: UIScrollView, UITextInput {
+  var writingSuggestionLastStarted = -Double.infinity
+  var writingSuggestionRequest: (id: UUID, task: Task<Void, Never>)?
+  private var writingSuggestions: WritingSuggestions?
+  public var onWritingSuggestionStatus: ((String) -> Void)?
+  public var writingSuggestion: String? { writingSuggestions?.suggestion }
+  public func setWritingSuggestions(delay: Double = 0.6, interval: Double = 6,
+    _ generate: (@MainActor (WritingSuggestionInput) async throws -> String)?) {
+    writingSuggestions?.stop()
+    writingSuggestions = generate.map { WritingSuggestions(editor: self, delay: delay, interval: interval, generate: $0) }
+    writingSuggestions?.refresh()
+  }
+  @discardableResult public func acceptWritingSuggestion() -> Bool { writingSuggestions?.accept() ?? false }
+  func writingSuggestionInput() -> WritingSuggestionInput? {
+    guard currentTypeaheadInput() != nil, selected.length == 0, selected.location > 0 else { return nil }
+    let text = storage.string as NSString
+    let paragraph = text.paragraphRange(for: NSRange(location: selected.location - 1, length: 0))
+    let end = NSMaxRange(paragraph) - (text.substring(with: paragraph).hasSuffix("\n") ? 1 : 0)
+    guard selected.location == end else { return nil }
+    let before = text.substring(to: selected.location)
+    guard text.substring(with: NSRange(location: paragraph.location, length: selected.location - paragraph.location)).trimmingCharacters(in: .whitespacesAndNewlines).count >= 3 else { return nil }
+    return WritingSuggestionInput(before: String(before.suffix(1200)), after: String(text.substring(from: selected.location).prefix(300)), offset: selected.location)
+  }
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
   private let model: any EditorModel
@@ -46,6 +68,7 @@ public final class EditorView: UIScrollView, UITextInput {
       resignFirstResponder()
     }
     isEditable = enabled
+    writingSuggestions?.refresh()
     typeahead?.clear()
     installTextInteraction()
     for child in editingChildren.allObjects { child.setEditingEnabled(enabled) }
@@ -861,6 +884,7 @@ public final class EditorView: UIScrollView, UITextInput {
     showModelSelection(fromInput: fromInput)
     if isEditable && (!change.changed.isEmpty || change.parentChanged) { onChange?() }
     refreshTypeahead()
+    writingSuggestions?.refresh()
     return change
   }
 
@@ -1093,18 +1117,19 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func report(_ call: TextInputRecord.Call) {
+    writingSuggestions?.refresh()
     onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
   public override func willMove(toSuperview newSuperview: UIView?) {
-    if newSuperview !== superview { endKeyboardInputTurn(); typeahead?.clear() }
+    if newSuperview !== superview { endKeyboardInputTurn(); typeahead?.clear(); writingSuggestions?.stop() }
     super.willMove(toSuperview: newSuperview)
   }
 
   public override func resignFirstResponder() -> Bool {
     endKeyboardInputTurn()
     let resigned = super.resignFirstResponder()
-    if resigned { typeahead?.clear() }
+    if resigned { typeahead?.clear(); writingSuggestions?.refresh() }
     return resigned
   }
 
@@ -1752,6 +1777,11 @@ public final class EditorView: UIScrollView, UITextInput {
       UIMenu(title: "Embeds", children: [("YouTube", "youtube"), ("Tweet", "tweet"), ("Figma", "figma")].map { title, type in
         UIAction(title: title) { [weak self] _ in self?.askForMediaURL(type: type, title: title) }
       })]
+  }
+
+  @discardableResult public func insertGeneratedImage(_ url: URL, altText: String) -> Bool {
+    guard url.scheme == "https", isEditable else { return false }
+    return insertMedia(Self.mediaNode("image", fields: ["src": .string(url.absoluteString), "altText": .string(altText)]))
   }
 
   private static func mediaNode(_ type: String, fields: [String: JSONValue]) -> JSONValue {

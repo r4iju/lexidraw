@@ -1,13 +1,8 @@
 "use client";
+import { DeviceNarrationPanel } from "~/lib/narration/device-panel";
+import { ProNarrationPanel } from "~/lib/narration/panel";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useEffectEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
@@ -30,8 +25,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "~/components/ui/accordion";
-import { useMarkdownTools } from "../utils/markdown";
-import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { X, Play } from "lucide-react";
@@ -46,14 +39,20 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
 
-type TtsSegment = {
-  index: number;
-  audioUrl: string;
-  text: string;
-  sectionTitle?: string;
-  sectionId?: string;
-  sectionIndex?: number;
-};
+import {
+  ListenSegments,
+  type ListenSegment as TtsSegment,
+} from "~/lib/narration/listen-contracts";
+import { SavedRecordingProjection } from "~/lib/narration/saved-recording";
+import {
+  SavedRecordingPlayback,
+  type SavedAudioScreen,
+} from "./SavedRecordingPlayback";
+type AudioScreen =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "empty" }
+  | { kind: "playable"; segments: TtsSegment[]; stale: boolean };
 
 /**
  * The document's one read-aloud player. It is held by `ListenProvider`, above
@@ -62,31 +61,42 @@ type TtsSegment = {
  * stopping the audio or asking for it again. It opens beside `anchor`, the
  * control showing now, or at the foot of the screen when none is in sight.
  */
-export function ListenPlayer({
-  documentId,
-  open,
-  onOpenChange,
-  anchor,
-}: {
+export function ListenPlayer(props: {
   documentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   anchor: HTMLElement | null;
 }) {
+  // Keep the popover's route/focus lifetime stable while playback resets on close.
+  const shown =
+    props.anchor && !props.anchor.closest("[inert]") ? props.anchor : null;
+  const anchored = useMemo(() => shown && { current: shown }, [shown]);
+  return (
+    <Popover open={props.open} onOpenChange={props.onOpenChange}>
+      {anchored ? (
+        <PopoverAnchor virtualRef={anchored} />
+      ) : (
+        <PopoverAnchor className="fixed bottom-0 right-4" />
+      )}
+      <ListenPlayerSession
+        key={`${props.documentId}:${props.open}`}
+        documentId={props.documentId}
+        open={props.open}
+      />
+    </Popover>
+  );
+}
+
+function ListenPlayerSession({
+  documentId,
+  open,
+}: Pick<React.ComponentProps<typeof ListenPlayer>, "documentId" | "open">) {
   const [editor] = useLexicalComposerContext();
-  const [segments, setSegments] = useState<TtsSegment[]>([]);
-  const [initialIndex, setInitialIndex] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const hasTriggeredTts = useRef(false);
+  // Drag position is a user event, owned by this open document session.
   const [position, setPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   });
-  // A control folded into a More menu is still there, but out of sight.
-  const shown = anchor && !anchor.closest("[inert]") ? anchor : null;
-  const anchored = useMemo(() => shown && { current: shown }, [shown]);
-  const { convertEditorStateToMarkdown } = useMarkdownTools();
-  const startTts = api.tts.startDocumentTts.useMutation();
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
     { documentId },
     {
@@ -116,7 +126,7 @@ export function ListenPlayer({
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
     { documentId },
     {
-      enabled: open && (making || status === "ready"),
+      enabled: open,
       refetchInterval: (query) =>
         making ||
         (status === "ready" && (query.state.data?.segments.length ?? 0) < made)
@@ -125,7 +135,7 @@ export function ListenPlayer({
     },
   );
   const refetchManifest = manifestQuery.refetch;
-  // The last parts are listed once the job is ready.
+  // The generated manifest query follows the external job store to its final parts.
   useEffect(() => {
     if (open && status === "ready") void refetchManifest();
   }, [open, status, refetchManifest]);
@@ -205,78 +215,62 @@ export function ListenPlayer({
     }
   }, []);
 
-  // Stable callback for TTS generation that can access latest values
-  const generateTts = useEffectEvent(async () => {
-    if (hasTriggeredTts.current) return;
-    hasTriggeredTts.current = true;
-    try {
-      setLoading(true);
-      const md = convertEditorStateToMarkdown(editor.getEditorState());
-      await startTts.mutateAsync({ documentId, markdown: md });
-    } catch (e) {
-      console.warn("[play-from-here] error", e);
-      toast.error("Failed to load audio.");
-      hasTriggeredTts.current = false; // Allow retry on error
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // Asks for the audio as it opens, and forgets it as it closes, whichever
-  // control opened or closed it.
-  useEffect(() => {
-    if (open) {
-      generateTts();
-      return;
-    }
-    setSegments([]);
-    setInitialIndex(0);
-    hasTriggeredTts.current = false;
-    setPosition({ x: 0, y: 0 });
-  }, [open]);
-
-  // Plays the parts as they are listed, from the first made; once all are,
-  // from the heading nearest the caret.
-  useEffect(() => {
-    if (!open) return;
-    if (!manifestQuery.data) return;
-    const segs = (manifestQuery.data.segments ?? []) as TtsSegment[];
-    if (segs.length <= segments.length) return;
-    if (segments.length === 0) {
-      const { sectionId } =
-        status === "ready" ? findNearestHeadingSlug(editor) : {};
-      const idx = sectionId
-        ? segs.findIndex((s) => s.sectionId === sectionId)
-        : -1;
-      setInitialIndex(idx >= 0 ? idx : 0);
-    }
-    setSegments(segs);
-  }, [
-    open,
-    status,
-    manifestQuery.data,
-    segments.length,
-    editor,
-    findNearestHeadingSlug,
-  ]);
+  const denied = [statusQuery.error, manifestQuery.error].some(
+    (error) =>
+      error?.data?.code === "FORBIDDEN" || error?.data?.code === "UNAUTHORIZED",
+  );
+  const parsed = ListenSegments.safeParse(manifestQuery.data?.segments ?? []);
+  const saved = SavedRecordingProjection.safeParse(
+    manifestQuery.data?.savedRecording,
+  );
+  const savedScreen: SavedAudioScreen =
+    denied || manifestQuery.error
+      ? { kind: "read-error" }
+      : manifestQuery.isPending || !manifestQuery.data
+        ? { kind: "loading" }
+        : saved.success
+          ? saved.data
+          : { kind: "stop", reason: "corrupt-payload" };
+  const invalidManifest = !parsed.success;
+  const segments = denied || !parsed.success ? [] : parsed.data;
+  const stale = !!statusQuery.error || !!manifestQuery.error || invalidManifest;
+  const screen: AudioScreen = segments.length
+    ? { kind: "playable", segments, stale }
+    : stale || denied
+      ? { kind: "error" }
+      : statusQuery.isPending ||
+          ((making || status === "ready") &&
+            (manifestQuery.isPending || !manifestQuery.data))
+        ? { kind: "loading" }
+        : { kind: "empty" };
+  // The first immutable audio URL identifies a recording. Appends keep that identity.
+  // The caret is read only when that recording first becomes playable.
+  const initialIndex = () => {
+    const { sectionId } =
+      status === "ready" ? findNearestHeadingSlug(editor) : {};
+    const index = sectionId
+      ? segments.findIndex((segment) => segment.sectionId === sectionId)
+      : -1;
+    return Math.max(0, index);
+  };
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      {anchored ? (
-        <PopoverAnchor virtualRef={anchored} />
-      ) : (
-        <PopoverAnchor className="fixed bottom-0 right-4" />
-      )}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <DraggablePopoverContent
-          position={position}
-          loading={loading}
-          segments={segments}
-          initialIndex={initialIndex}
-          making={making}
-        />
-      </DndContext>
-    </Popover>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DraggablePopoverContent
+        position={position}
+        documentId={documentId}
+        screen={screen}
+        savedScreen={savedScreen}
+        initialIndex={initialIndex}
+        denied={denied}
+        invalidManifest={invalidManifest}
+        statusError={!!statusQuery.error}
+        manifestError={!!manifestQuery.error}
+        retryStatus={() => void statusQuery.refetch()}
+        retryManifest={() => void manifestQuery.refetch()}
+        making={making}
+      />
+    </DndContext>
   );
 }
 
@@ -311,16 +305,30 @@ function typingOutside(target: EventTarget | null) {
 }
 
 function DraggablePopoverContent({
+  documentId,
   position,
-  loading,
-  segments,
+  screen,
   initialIndex,
+  savedScreen,
+  denied,
+  invalidManifest,
+  statusError,
+  manifestError,
+  retryStatus,
+  retryManifest,
   making,
 }: {
+  documentId: string;
   position: { x: number; y: number };
-  loading: boolean;
-  segments: TtsSegment[];
-  initialIndex: number;
+  screen: AudioScreen;
+  savedScreen: SavedAudioScreen;
+  initialIndex: () => number;
+  denied: boolean;
+  invalidManifest: boolean;
+  statusError: boolean;
+  manifestError: boolean;
+  retryStatus: () => void;
+  retryManifest: () => void;
   /** Whether more parts are being made, to follow the ones listed. */
   making: boolean;
 }) {
@@ -330,16 +338,6 @@ function DraggablePopoverContent({
     });
   // What opened the player, which has the focus back when it closes.
   const opener = useRef<HTMLElement | null>(null);
-
-  // Starts at initialIndex each time parts are first listed; parts listed
-  // later only follow on. Past the last part listed, it waits for the next.
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const listed = segments.length > 0;
-  useEffect(() => {
-    if (listed) setCurrentIndex(Math.max(0, initialIndex));
-  }, [listed, initialIndex]);
-  const current = segments[currentIndex];
-  const waiting = listed && !current;
 
   const finalTransform = transform
     ? {
@@ -380,6 +378,8 @@ function DraggablePopoverContent({
           e.preventDefault();
         }}
       >
+        <DeviceNarrationPanel documentId={documentId} />
+        <ProNarrationPanel documentId={documentId} />
         {/* Sticky header + controls */}
         <div className="sticky top-0 z-20 bg-popover -mx-4 -mt-4 px-4 pt-4 pb-2">
           <div className="relative min-w-xs">
@@ -403,100 +403,151 @@ function DraggablePopoverContent({
               </Button>
             </PopoverClose>
           </div>
-          {loading && (
-            <div className="text-sm text-muted-foreground">Loading audio…</div>
+          {screen.kind === "loading" && <p role="status">Loading audio…</p>}
+          {invalidManifest && (
+            <p role="alert">
+              Audio segments could not be read safely.{" "}
+              <Button onClick={retryManifest}>Retry audio segments</Button>
+            </p>
           )}
-          {!loading && segments.length > 0 && (
-            <div className="space-y-2">
-              {current?.sectionTitle && (
-                <div className="text-sm text-muted-foreground font-medium">
-                  {current.sectionTitle}
-                </div>
-              )}
-              <AudioPlayer
-                // Waiting, it keeps the part that ended, and plays the next
-                // as it arrives.
-                src={(current ?? segments.at(-1))?.audioUrl ?? ""}
-                autoPlay
-                onEnded={() => {
-                  if (currentIndex < segments.length - 1 || making) {
-                    setCurrentIndex(currentIndex + 1);
-                  }
-                }}
-                className="min-w-xs"
-              />
-              {waiting && making && (
-                <div className="text-sm text-muted-foreground">
-                  Making the next part…
-                </div>
-              )}
-            </div>
+          {denied && (
+            <p role="alert">
+              Audio access could not be confirmed. Cached media is hidden.
+            </p>
+          )}
+          {statusError && (
+            <p role="alert">
+              Audio status could not be refreshed.{" "}
+              <Button onClick={retryStatus}>Retry audio status</Button>
+            </p>
+          )}
+          {manifestError && (
+            <p role="alert">
+              Audio segments could not be refreshed.{" "}
+              <Button onClick={retryManifest}>Retry audio segments</Button>
+            </p>
+          )}
+          {screen.kind === "playable" && screen.stale && (
+            <p role="status">
+              Cached audio may be stale. Refresh before relying on its progress.
+            </p>
           )}
         </div>
-
-        {/* Scrollable segments list */}
-        {!loading && segments.length > 0 && (
-          <Accordion
-            type="single"
-            collapsible
-            className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
-          >
-            <AccordionItem value="segments">
-              <AccordionTrigger className="px-4">Segments</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-0 divide-y divide-border pb-0">
-                {segments.map((s, i) => {
-                  const isCurrent = i === currentIndex;
-                  const isLast = i === segments.length - 1;
-                  const segmentName = (() => {
-                    if (s.sectionTitle) {
-                      let chunkCount = 0;
-                      for (let j = 0; j <= i; j++) {
-                        if (
-                          segments[j]?.sectionTitle === s.sectionTitle &&
-                          (s.sectionIndex === undefined ||
-                            segments[j]?.sectionIndex === s.sectionIndex)
-                        ) {
-                          chunkCount++;
-                        }
-                      }
-                      return chunkCount === 1
-                        ? s.sectionTitle
-                        : `${s.sectionTitle} (${chunkCount})`;
-                    }
-                    return `Block ${i + 1}`;
-                  })();
-                  return (
-                    <Button
-                      key={s.index}
-                      variant={isCurrent ? "default" : "secondary"}
-                      onClick={() => setCurrentIndex(i)}
-                      className={cn(
-                        "w-full flex flex-row items-center justify-start gap-2 rounded-none",
-                        {
-                          "rounded-b-md": isLast,
-                        },
-                      )}
-                    >
-                      <Play
-                        className={`size-4 mr-2 ${
-                          isCurrent ? "text-primary-foreground" : "text-primary"
-                        }`}
-                      />
-                      <span className="font-mono">{i + 1}.</span>
-                      <span className="truncate">{segmentName}</span>
-                    </Button>
-                  );
-                })}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+        <SavedRecordingPlayback documentId={documentId} screen={savedScreen} />
+        {screen.kind === "playable" && (
+          <RecordingPlayback
+            key={screen.segments[0]?.audioUrl ?? "recording"}
+            segments={screen.segments}
+            initialIndex={initialIndex}
+            making={making}
+          />
         )}
-        {!loading && segments.length === 0 && (
-          <div className="text-sm text-muted-foreground">
-            No audio segments found. Generate audio first.
-          </div>
+        {screen.kind === "empty" && savedScreen.kind === "none" && (
+          <p>
+            No saved audio is available. The source controls above show whether
+            new narration is available.
+          </p>
         )}
       </PopoverContent>
     </div>
+  );
+}
+
+function RecordingPlayback({
+  segments,
+  initialIndex,
+  making,
+}: {
+  segments: TtsSegment[];
+  initialIndex: () => number;
+  making: boolean;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const current =
+    segments[currentIndex] ?? (making ? undefined : segments.at(-1));
+  const waiting = !current;
+  return (
+    <>
+      <div className="space-y-2">
+        {current?.sectionTitle && (
+          <div className="text-sm text-muted-foreground font-medium">
+            {current.sectionTitle}
+          </div>
+        )}
+        <AudioPlayer
+          // Waiting, it keeps the part that ended, and plays the next
+          // as it arrives.
+          src={(current ?? segments.at(-1))?.audioUrl ?? ""}
+          autoPlay
+          onEnded={() => {
+            if (currentIndex < segments.length - 1 || making) {
+              setCurrentIndex(currentIndex + 1);
+            }
+          }}
+          className="min-w-xs"
+        />
+        {waiting && making && (
+          <div className="text-sm text-muted-foreground">
+            Making the next part…
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable segments list */}
+      <Accordion
+        type="single"
+        collapsible
+        className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
+      >
+        <AccordionItem value="segments">
+          <AccordionTrigger className="px-4">Segments</AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-0 divide-y divide-border pb-0">
+            {segments.map((s, i) => {
+              const isCurrent = i === currentIndex;
+              const isLast = i === segments.length - 1;
+              const segmentName = (() => {
+                if (s.sectionTitle) {
+                  let chunkCount = 0;
+                  for (let j = 0; j <= i; j++) {
+                    if (
+                      segments[j]?.sectionTitle === s.sectionTitle &&
+                      (s.sectionIndex === undefined ||
+                        segments[j]?.sectionIndex === s.sectionIndex)
+                    ) {
+                      chunkCount++;
+                    }
+                  }
+                  return chunkCount === 1
+                    ? s.sectionTitle
+                    : `${s.sectionTitle} (${chunkCount})`;
+                }
+                return `Block ${i + 1}`;
+              })();
+              return (
+                <Button
+                  key={s.index}
+                  variant={isCurrent ? "default" : "secondary"}
+                  onClick={() => setCurrentIndex(i)}
+                  className={cn(
+                    "w-full flex flex-row items-center justify-start gap-2 rounded-none",
+                    {
+                      "rounded-b-md": isLast,
+                    },
+                  )}
+                >
+                  <Play
+                    className={`size-4 mr-2 ${
+                      isCurrent ? "text-primary-foreground" : "text-primary"
+                    }`}
+                  />
+                  <span className="font-mono">{i + 1}.</span>
+                  <span className="truncate">{segmentName}</span>
+                </Button>
+              );
+            })}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </>
   );
 }

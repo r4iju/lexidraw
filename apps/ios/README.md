@@ -9,6 +9,33 @@ it can't sign in. The simulator's ad-hoc signing is enough.
 LexicalSwift follows the Lexical version the web editor uses. To upgrade
 Lexical, see [Upgrading Lexical](../../docs/lexical-upgrade.md).
 
+## Native BYOK text
+
+Settings → AI Power uses one OpenRouter key, held in non-synchronizing
+`WhenUnlockedThisDeviceOnly` Keychain storage. Each sign-in has its own
+credential scope; sign-out deletes it even before AI settings have been opened.
+Only the mode/provider preference syncs through the existing account API.
+
+`bun run build:generation` bundles the shared TypeScript autocomplete preparation
+and result rules into `NativeGenerationBundle.swift`. Run it when those rules
+change. JavaScriptCore has no general network, filesystem, credential, console
+or browser-stream access. Native adapters make bounded non-streaming text
+requests, hold opaque request lifetimes, and keep only a guarded completed
+suggestion in a file-protected, backup-excluded device cache. Unfinished work
+stops on cancellation, backgrounding or leaving the screen; it is not a server job.
+
+Provider requests use only the exact OpenRouter HTTPS key-information and
+chat-completion paths, reject redirects, and never carry app tokens. App API,
+upload, result-file and error boundaries reject configured key values and common
+accidental representations. There is no Pro fallback or credit operation.
+
+`swift test --filter NativeBYOKTests` intercepts native HTTP traffic and exercises
+the actual JavaScriptCore bundle and Keychain. The two AI Power journeys in
+`AccountJourneysUITests` use BrowserHarness's provider fixture, with no paid
+requests. Lease a pooled simulator for these checks; do not use the legacy UI
+script's simulator-creation helper. Fixture success does not establish real
+provider access. Verify an authenticated, authorized provider smoke separately.
+
 ## Corpus check
 
 `bun run test:corpus` loads and saves every document an account owns with

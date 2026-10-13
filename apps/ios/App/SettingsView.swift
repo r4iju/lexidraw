@@ -85,6 +85,15 @@ private struct SettingsView: View {
         } footer: {
           Text("Sign out of this device. Your files and your sign-ins on other devices stay in your account.")
         }
+        if case .signedIn(let session) = model.state {
+          Section("AI") {
+            NavigationLink {
+              AIPowerView(session: session)
+            } label: {
+              Label("AI Power", systemImage: "sparkles")
+            }
+          }
+        }
         Section("Listening") {
           NavigationLink {
             ReadAloudInformationView()
@@ -148,6 +157,9 @@ private struct SettingsView: View {
           "Lexidraw couldn’t confirm with the server that this \(UIDevice.current.model)’s token was revoked. Revoke it under API tokens in Settings on the web."
       }
       model.state = .signedOut
+    } catch let failure as NativeCleanupFailure where failure.signedOut {
+      model.state = .signedOut
+      model.notice = failure.localizedDescription
     } catch {
       signOutFailure = "Your sign-in couldn’t be removed from this \(UIDevice.current.model). You’re still signed in here. Please try again.\n\n\(error.localizedDescription)"
     }
@@ -287,6 +299,9 @@ private struct DeleteAccountView: View {
       try await session.deleteAccount(confirmation: typed)
       model.notice = "Your account and everything that was yours are deleted."
       model.state = .signedOut
+    } catch let failure as NativeCleanupFailure where failure.accountDeleted {
+      model.state = .signedOut
+      model.notice = failure.localizedDescription
     } catch {
       phase = .refused(confirmation, error.localizedDescription)
     }
@@ -297,14 +312,14 @@ private struct ReadAloudInformationView: View {
   var body: some View {
     Form {
       Section {
-        Label("Read aloud with AI", systemImage: "waveform")
+        Label("Read aloud", systemImage: "waveform")
           .font(.headline)
         Text(ReadAloudDisclosure.explanation)
       } footer: {
-        Text("Before generating audio, Lexidraw asks for your permission. Allowing it applies to the current browsing session. Opening this page does not grant permission.")
+        Text("Choose Built-in local in AI Power for free document narration. Voice and language availability depend on the voices installed on your device. No cloud fallback is used.")
       }
       Section {
-        Text("Choose Listen from a document or link’s actions menu. Existing audio can play without generating a new recording.")
+        Text("Choose Listen from a document’s actions menu. Play Saved Recording preserves playback of existing cloud audio, regardless of your power source.")
       }
     }
     .navigationTitle("Read Aloud")

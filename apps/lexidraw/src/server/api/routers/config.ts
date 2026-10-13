@@ -1,10 +1,7 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { autoSaveEnabled } from "~/lib/auto-save";
-import {
-  listenSettings,
-  TTS_FORMATS,
-  TTS_PROVIDERS,
-} from "~/app/settings/schema";
+import { listenSettings, TTS_PROVIDERS } from "~/app/settings/schema";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -12,9 +9,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq } from "@packages/drizzle";
-import env from "@packages/env";
-import { GEMINI_LANGUAGES, GEMINI_VOICES } from "~/lib/gemini-voices";
+import { eq, sql } from "@packages/drizzle";
 import {
   DEFAULT_GOOGLE_AGENT_MODEL_ID,
   DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
@@ -76,90 +71,6 @@ export type TtsConfigResult = {
   diagnostics?: TtsOptionsDiagnostics;
 };
 
-// Gemini reads every language in each of its voices.
-const GEMINI_VOICE_OPTIONS: TtsVoice[] = GEMINI_VOICES.map((v) => ({
-  id: v.name,
-  label: `${v.name} (${v.character})`,
-  languageCodes: GEMINI_LANGUAGES,
-}));
-
-// --- Kokoro helpers ---
-const KOKORO_FALLBACK: TtsOptionsResult = {
-  voices: [
-    {
-      id: "af_heart",
-      label: "Heart (Female)",
-      languageCodes: ["en-US"],
-    },
-  ],
-  languages: ["en-US"],
-};
-
-const KOKORO_LANG_FROM_PREFIX: Record<string, string> = {
-  a: "en-US",
-  b: "en-GB",
-  j: "ja-JP",
-  z: "zh-CN",
-  e: "es-ES",
-  f: "fr-FR",
-  h: "hi-IN",
-  i: "it-IT",
-  p: "pt-BR",
-};
-const KOKORO_GENDER_FROM_PREFIX: Record<string, "Female" | "Male"> = {
-  f: "Female",
-  m: "Male",
-};
-
-function formatKokoroLabel(id: string): string {
-  // id like "af_heart" → "Heart (Female)"
-  const parts = id.split("_");
-  const suffix = parts.slice(1).join("_") || id; // voice name
-  const name = suffix.charAt(0).toUpperCase() + suffix.slice(1);
-  const genderKey = id.length > 1 ? id[1] : "";
-  const gender = KOKORO_GENDER_FROM_PREFIX[genderKey || ""];
-  return gender ? `${name} (${gender})` : name;
-}
-
-async function fetchKokoroVoices(baseUrl: string): Promise<TtsOptionsResult> {
-  const resp = await fetch(`${baseUrl}/v1/audio/voices`, {
-    headers: kokoroCfHeaders(),
-    cache: "no-store",
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    return {
-      ...KOKORO_FALLBACK,
-      diagnostics: { code: "http_error", status: resp.status, message: text },
-    };
-  }
-  const json = (await resp.json()) as { voices?: Array<{ id?: string }> };
-  const voices: TtsVoice[] = [];
-  for (const v of json.voices ?? []) {
-    const id = v?.id;
-    const lang = id ? KOKORO_LANG_FROM_PREFIX[id[0] ?? ""] : undefined;
-    // Skip voice blends and ids outside the known language prefixes
-    if (!id || !lang || id.includes("+")) continue;
-    voices.push({ id, label: formatKokoroLabel(id), languageCodes: [lang] });
-  }
-  if (voices.length === 0) return KOKORO_FALLBACK;
-  const languages = Array.from(
-    new Set(voices.flatMap((v) => v.languageCodes)),
-  ).sort();
-  return { voices, languages };
-}
-
-function kokoroCfHeaders(): Record<string, string> {
-  return process.env.NODE_ENV === "production" &&
-    env.CF_ACCESS_CLIENT_ID &&
-    env.CF_ACCESS_CLIENT_SECRET
-    ? {
-        "CF-Access-Client-Id": env.CF_ACCESS_CLIENT_ID,
-        "CF-Access-Client-Secret": env.CF_ACCESS_CLIENT_SECRET,
-      }
-    : {};
-}
-
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   modelId: DEFAULT_GOOGLE_CHAT_MODEL_ID,
@@ -207,7 +118,9 @@ const TtsConfigSchema = z.object({
   languageCode: z.string(),
   sampleRate: z.number().int().positive().optional(),
 });
-const TtsPatchSchema = TtsConfigSchema.partial();
+const TtsPatchSchema = z.strictObject({
+  speed: z.number().min(0.25).max(4).optional(),
+});
 
 const ArticleConfigSchema = z.object({
   languageCode: z.string(),
@@ -243,6 +156,20 @@ async function storedConfig(
     columns: { config: true },
   });
   return user?.config ?? undefined;
+}
+
+// Each path is applied to the current row in the UPDATE, so another request's
+// source or settings cannot be restored from a captured account config.
+function patchConfigSubtree(
+  section: "tts" | "articles" | "audio" | "autoSave",
+  patch: Record<string, unknown>,
+) {
+  const current = sql`coalesce(nullif(${schema.users.config}, 'null'), '{}')`;
+  let subtree = sql`coalesce(json_extract(${current}, ${`$.${section}`}), '{}')`;
+  for (const [key, value] of Object.entries(patch)) {
+    subtree = sql`json_set(${subtree}, ${`$.${key}`}, json(${JSON.stringify(value)}))`;
+  }
+  return sql`json_set(${current}, ${`$.${section}`}, json(${subtree}))`;
 }
 
 export const configRouter = createTRPCRouter({
@@ -290,89 +217,24 @@ export const configRouter = createTRPCRouter({
   // --- Autocomplete (separate, minimal engine) ---
   getAutocompleteConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
-    const defaults = {
-      enabled: true,
-      delayMs: 200,
-      provider: "openai",
-      modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
-      temperature: 0.3,
-      maxOutputTokens: 400,
-      reasoningEffort: "minimal" as const,
-      verbosity: "low" as const,
-    };
-    let cfg = (config?.autocomplete ?? null) as
-      | (typeof defaults & Record<string, unknown>)
-      | null;
-
-    // Migration: seed from old llm.autocomplete if missing
-    if (!cfg) {
-      const seed = config?.llm?.autocomplete as
-        | Partial<typeof defaults>
-        | undefined;
-      const userId = ctx.session?.user?.id;
-      if (seed && userId) {
-        cfg = { ...defaults, ...seed } as typeof defaults &
-          Record<string, unknown>;
-        await ctx.drizzle
-          .update(schema.users)
-          .set({
-            config: {
-              ...config,
-              autocomplete: cfg,
-            } as (typeof schema.users.$inferInsert)["config"],
-          })
-          .where(eq(schema.users.id, userId));
-      }
-    }
-
-    return { ...defaults, ...(cfg ?? {}) } as typeof defaults &
-      Record<string, unknown>;
+    return { enabled: config?.autocomplete?.enabled === true };
   }),
   updateAutocompleteConfig: protectedProcedure
-    .input(
-      z
-        .object({
-          enabled: z.boolean().optional(),
-          delayMs: z.number().int().min(0).max(5000).optional(),
-          provider: z.literal("openai").optional(),
-          modelId: z.string().optional(),
-          temperature: z.number().min(0).max(1).optional(),
-          maxOutputTokens: z.number().int().positive().max(2000).optional(),
-          reasoningEffort: z.enum(["minimal", "standard", "heavy"]).optional(),
-          verbosity: z.enum(["low", "medium", "high"]).optional(),
-        })
-        .partial(),
-    )
+    .input(z.strictObject({ enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      const next = {
-        enabled: true,
-        delayMs: 200,
-        provider: "openai",
-        modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
-        temperature: 0.3,
-        maxOutputTokens: 400,
-        reasoningEffort: "minimal",
-        verbosity: "low",
-        ...(current?.config?.autocomplete ?? {}),
-        ...input,
-      } as Record<string, unknown>;
       await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), autocomplete: next } })
+        .set({
+          config: sql`json_set(coalesce(nullif(${schema.users.config}, 'null'), '{}'), '$.autocomplete', json(${JSON.stringify(input)}))`,
+        })
         .where(eq(schema.users.id, ctx.session.user.id));
-      return next;
+      return input;
     }),
   getConfig: publicProcedure.query(
     async ({ ctx }): Promise<StoredLlmConfig> => {
       const config = await storedConfig(ctx);
 
-      const existingLlm = (config?.llm ?? {}) as Partial<
-        z.infer<typeof LlmConfigSchema>
-      >;
+      const existingLlm: Partial<StoredLlmConfig> = config?.llm ?? {};
       const llmConfigUnnormalized = {
         ...defaultChatBaseConfig,
         ...existingLlm,
@@ -405,7 +267,7 @@ export const configRouter = createTRPCRouter({
   getAudioConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
     const preferredPlaybackRate = config?.audio?.preferredPlaybackRate ?? 1;
-    return { preferredPlaybackRate } as { preferredPlaybackRate: number };
+    return { preferredPlaybackRate };
   }),
 
   updateAudioConfig: protectedProcedure
@@ -415,25 +277,9 @@ export const configRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-
-      const nextConfig = {
-        ...(current?.config ?? {}),
-        audio: {
-          ...(current?.config?.audio ?? {}),
-          preferredPlaybackRate: input.preferredPlaybackRate,
-        },
-      } as (typeof schema.users.$inferInsert)["config"];
-
       await ctx.drizzle
         .update(schema.users)
-        .set({
-          config:
-            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
-        })
+        .set({ config: patchConfigSubtree("audio", input) })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       return { preferredPlaybackRate: input.preferredPlaybackRate };
@@ -452,222 +298,36 @@ export const configRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-
-      const nextConfig = {
-        ...(current?.config ?? {}),
-        autoSave: {
-          ...(current?.config?.autoSave ?? {}),
-          enabled: input.enabled,
-        },
-      } as (typeof schema.users.$inferInsert)["config"];
-
       await ctx.drizzle
         .update(schema.users)
-        .set({
-          config:
-            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
-        })
+        .set({ config: patchConfigSubtree("autoSave", input) })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       return { enabled: input.enabled };
     }),
 
-  // --- Read-only TTS options (voices/languages) ---
+  // Compatibility endpoints describe unavailable synthesis without contacting providers.
   getTtsOptions: protectedProcedure
-    .input(
-      z.object({
-        provider: z.enum(TTS_PROVIDERS),
+    .input(z.strictObject({ provider: z.enum(TTS_PROVIDERS) }))
+    .query(
+      (): TtsOptionsResult => ({
+        voices: [],
+        languages: [],
+        diagnostics: {
+          code: "http_error",
+          message:
+            "Legacy voice services are unavailable. Use AI Power or saved playback.",
+        },
       }),
-    )
-    .query(async ({ ctx, input }) => {
-      type Result = TtsOptionsResult;
-
-      // In-memory cache per user+provider for 10 minutes
-      const now = Date.now();
-      const cacheKey = `${ctx.session.user.id}:${input.provider}`;
-      const g = globalThis as unknown as {
-        __ttsOptionsCache?: Map<string, { expires: number; data: Result }>;
-      };
-      if (!g.__ttsOptionsCache) {
-        g.__ttsOptionsCache = new Map<
-          string,
-          { expires: number; data: Result }
-        >();
-      }
-      const bag = g.__ttsOptionsCache;
-      const cached = bag.get(cacheKey);
-      if (cached && cached.expires > now) return cached.data;
-
-      if (input.provider === "openai") {
-        const data: Result = {
-          voices: [
-            { id: "alloy", label: "alloy", languageCodes: ["en-US"] },
-            { id: "aria", label: "aria", languageCodes: ["en-US"] },
-            { id: "verse", label: "verse", languageCodes: ["en-US"] },
-            { id: "sage", label: "sage", languageCodes: ["en-US"] },
-            { id: "luna", label: "luna", languageCodes: ["en-US"] },
-          ],
-          languages: ["en-US"],
-        };
-        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
-        return data;
-      }
-
-      if (input.provider === "kokoro") {
-        const baseUrl = env.KOKORO_URL?.replace(/\/$/, "");
-        const dev = process.env.NODE_ENV !== "production";
-        const successTtlMs = dev ? 5_000 : 10 * 60_000;
-        const errorTtlMs = dev ? 5_000 : 60_000;
-        // Fallback static voice if Kokoro is not configured
-        if (!baseUrl) {
-          bag.set(cacheKey, {
-            expires: now + errorTtlMs,
-            data: KOKORO_FALLBACK,
-          });
-          return KOKORO_FALLBACK;
-        }
-        try {
-          const data = await fetchKokoroVoices(baseUrl);
-          const ttlMs = data.diagnostics ? errorTtlMs : successTtlMs;
-          bag.set(cacheKey, { expires: now + ttlMs, data });
-          return data;
-        } catch (e) {
-          const data: Result = {
-            ...KOKORO_FALLBACK,
-            diagnostics: { code: "http_error", message: (e as Error)?.message },
-          };
-          bag.set(cacheKey, { expires: now + errorTtlMs, data });
-          return data;
-        }
-      }
-
-      // Google Gemini
-      if (!env.GOOGLE_API_KEY) {
-        const empty: Result = {
-          voices: [],
-          languages: [],
-          diagnostics: {
-            code: "missing_api_key",
-            message:
-              "Google Gemini TTS requires an API key configured at the app level.",
-          },
-        };
-        bag.set(cacheKey, { expires: now + 60_000, data: empty });
-        return empty;
-      }
-      const data: Result = {
-        voices: GEMINI_VOICE_OPTIONS,
-        languages: GEMINI_LANGUAGES,
-      };
-      bag.set(cacheKey, { expires: now + 10 * 60_000, data });
-      return data;
+    ),
+  getTtsCatalog: protectedProcedure.query(
+    (): TtsConfigResult => ({
+      providers: [],
+      languages: [],
+      families: [],
+      voices: [],
     }),
-
-  // --- Rich TTS catalog merged with OpenAI/Google ---
-  // Not a settings read, so a visitor is refused: building it asks Kokoro's
-  // server for its voices.
-  getTtsCatalog: protectedProcedure.query(async () => {
-    const providers: TtsConfigProvider[] = [];
-    const languages = new Set<string>();
-    const families = new Set<string>();
-    const voices: TtsConfigVoice[] = [];
-
-    // Always-available cloud providers (minimal metadata)
-    providers.push({
-      id: "google",
-      label: "Google Gemini",
-      formats: TTS_FORMATS.google,
-      languages: GEMINI_LANGUAGES,
-      capabilities: { ssml: false },
-    });
-    voices.push(
-      ...GEMINI_VOICE_OPTIONS.map((v) => ({ ...v, provider: "google" })),
-    );
-    for (const lc of GEMINI_LANGUAGES) languages.add(lc);
-    providers.push({
-      id: "openai",
-      label: "OpenAI",
-      formats: ["mp3"],
-      languages: ["en-US"],
-      capabilities: { ssml: false },
-    });
-
-    // Common OpenAI voices
-    const oaVoices: TtsConfigVoice[] = [
-      {
-        id: "alloy",
-        label: "alloy",
-        languageCodes: ["en-US"],
-        provider: "openai",
-      },
-      {
-        id: "aria",
-        label: "aria",
-        languageCodes: ["en-US"],
-        provider: "openai",
-      },
-      {
-        id: "verse",
-        label: "verse",
-        languageCodes: ["en-US"],
-        provider: "openai",
-      },
-      {
-        id: "sage",
-        label: "sage",
-        languageCodes: ["en-US"],
-        provider: "openai",
-      },
-      {
-        id: "luna",
-        label: "luna",
-        languageCodes: ["en-US"],
-        provider: "openai",
-      },
-    ];
-    voices.push(...oaVoices);
-    for (const v of oaVoices) {
-      for (const lc of v.languageCodes) languages.add(lc);
-    }
-
-    const kokoroUrl = env.KOKORO_URL?.replace(/\/$/, "");
-    if (kokoroUrl) {
-      try {
-        const kokoro = await fetchKokoroVoices(kokoroUrl);
-        if (!kokoro.diagnostics) {
-          providers.push({
-            id: "kokoro",
-            label: "Kokoro",
-            formats: ["mp3", "ogg", "wav"],
-            languages: kokoro.languages,
-            capabilities: { ssml: false },
-          });
-          for (const v of kokoro.voices) {
-            voices.push({ ...v, provider: "kokoro" });
-            for (const lc of v.languageCodes) languages.add(lc);
-          }
-        }
-      } catch {
-        // Kokoro unreachable; return clouds only
-      }
-    }
-
-    // Dedupe voices by provider:id
-    const uniqueVoices = Array.from(
-      new Map(voices.map((v) => [`${v.provider}:${v.id}`, v])).values(),
-    );
-    const catalog: TtsConfigResult = {
-      providers,
-      languages: Array.from(languages).sort(),
-      families: Array.from(families).sort(),
-      voices: uniqueVoices,
-    };
-    return catalog;
-  }),
+  ),
 
   // --- User TTS config ---
   getTtsConfig: publicProcedure.query(async ({ ctx }) => {
@@ -677,16 +337,12 @@ export const configRouter = createTRPCRouter({
   updateTtsConfig: protectedProcedure
     .input(TtsPatchSchema)
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      const next = { ...listenSettings(current?.config?.tts), ...input };
-      await ctx.drizzle
+      const [saved] = await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), tts: next } })
-        .where(eq(schema.users.id, ctx.session.user.id));
-      return TtsConfigSchema.parse(next);
+        .set({ config: patchConfigSubtree("tts", input) })
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .returning({ config: schema.users.config });
+      return TtsConfigSchema.parse(listenSettings(saved?.config?.tts));
     }),
 
   // --- Article config ---
@@ -698,77 +354,23 @@ export const configRouter = createTRPCRouter({
   updateArticleConfig: protectedProcedure
     .input(ArticlePatchSchema)
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      const next = {
-        ...defaultArticles,
-        ...(current?.config?.articles ?? {}),
-        ...input,
-      };
-      await ctx.drizzle
+      const [saved] = await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), articles: next } })
-        .where(eq(schema.users.id, ctx.session.user.id));
-      return ArticleConfigSchema.parse(next);
+        .set({ config: patchConfigSubtree("articles", input) })
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .returning({ config: schema.users.config });
+      return ArticleConfigSchema.parse({
+        ...defaultArticles,
+        ...saved?.config?.articles,
+      });
     }),
 
   updateLlmConfig: protectedProcedure
     .input(PatchSchema)
-    .mutation(async ({ ctx, input }): Promise<PartialLlmConfig> => {
-      const currentUser = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
+    .mutation((): PartialLlmConfig => {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Use AI Power. Legacy model settings are unavailable.",
       });
-
-      const currentLlm = (currentUser?.config?.llm ?? {}) as Partial<
-        z.infer<typeof LlmConfigSchema>
-      >;
-      const newLlmConfigUnnormalized = {
-        ...currentLlm,
-        chat: {
-          ...defaultChatBaseConfig,
-          ...currentLlm?.chat,
-          ...input.chat,
-        },
-        autocomplete: {
-          ...defaultAutocompleteBaseConfig,
-          ...currentLlm?.autocomplete,
-          ...input.autocomplete,
-        },
-        agent: {
-          ...defaultAgentBaseConfig,
-          ...currentLlm?.agent,
-          ...input.agent,
-        },
-      } as StoredLlmConfig;
-
-      const newLlmConfigToSave = LlmConfigSchema.parse({
-        ...newLlmConfigUnnormalized,
-        chat: normalizeBaseConfig(newLlmConfigUnnormalized.chat),
-        autocomplete: normalizeBaseConfig(
-          newLlmConfigUnnormalized.autocomplete,
-        ),
-        agent: normalizeBaseConfig(newLlmConfigUnnormalized.agent),
-      });
-
-      // Merge LLM into existing config to avoid clobbering audio/tts/articles
-      const existing = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      await ctx.drizzle
-        .update(schema.users)
-        .set({
-          config: {
-            ...(existing?.config ?? {}),
-            llm: newLlmConfigToSave,
-          } as (typeof schema.users.$inferInsert)["config"],
-        })
-        .where(eq(schema.users.id, ctx.session.user.id));
-
-      // Return as partial config
-      return PatchSchema.parse(newLlmConfigToSave);
     }),
 });

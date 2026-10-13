@@ -1,0 +1,596 @@
+# AI Power local integration audit (#291)
+
+Local branch `feat/276-ai-power-modes`, audited from `36e8174bbea5d5b3536d85fec7aa524d04b9cd35`, descendant of original integration base `065a2f914d46ad667d10c4348d6323a94116245e`. Tickets 277 through 290 are integrated locally. This is implementation evidence, not independent review, cloud acceptance or completion of #276. Parent must run a fresh code-review against that original base.
+
+## Dispatch inventory and current gates
+
+| Surface | Current boundary |
+| --- | --- |
+| `/api/llm/generate`, `/api/llm/stream`, `/api/autocomplete/stream` | Legacy generation closed; authenticated callers get explicit unavailable responses. |
+| `/api/llm/proxy/openai/*`, `/api/llm/proxy/google/*` | All legacy forwarding deleted, including GET/model discovery, HEAD and writes. No server key resolution or upstream forwarding. |
+| `/api/llm/agent`, callback; `llm.plan`, `llm.generate` | Closed legacy planner/agent. Legacy agent UI links to supported document actions; chat now uses its separate source-selected bounded contract. |
+| `web.googleSearch`, `web.extractWebpageContent`; `sandbox.search`, fetch/article and legacy tool helpers | Standalone paid search and sandbox dispatch closed. Legacy toolkit can only call denied routes. No standalone operation ID authorizes paid tools. |
+| `image` legacy route; `imagePower` generation/upload; dashboard cover/drawing image callers | Legacy generation closed. Pro/BYOK image generation stays unavailable. Generated images now register in a dedicated private Blob store and use an authenticated, bounded app delivery route. Saving/read access is independent of generation eligibility; actual private-store configuration remains unverified. Existing images/drawings stay untouched. |
+| `pro.chatQuote/chatAccept`, `/api/chat/stream`; web/native chat | Bounded shared CHAT preparation preserves text history/context and supports UTF-8 text attachments. Pro quotes and atomically accepts period-pinned text rates, then streams through authenticated ownership and durable attempt fences. Direct device OpenRouter SSE and native Apple Intelligence snapshots use separate credential-free adapters. Production provider chat gates remain closed pending separately authorized preflight; the complete local injected path is executable. |
+| `pro.text`, `pro.autocomplete`, pro-text workflow | Production capability is explicitly false. UI shows Coming soon, rejects before reservation, and old durable production text jobs cannot resolve a system key. Injected bounded text adapter requires attempt/account authorization again at actual HTTP dispatch. |
+| `agentPower.quote/start/current/operation/cancel`, pro-agent workflow | Production executor absent. Injected whole-action path uses one reservation and account budget for planning, decisions, generation, search and operation-bound typed sandbox/delegation. Actual dispatch requires active eligibility, current dated entitlement, original-period fence, operation ownership and started attempt. Search and SDK fetch recheck after key resolution; cancellation stops further steps. |
+| `narration.quote/start/operation/saved`, pro-narration workflow | Production executor absent. Injected bounded narration uses period customer-rate snapshots and the common ledger. Provider-free operation/saved reads check current document access and return historical account-owned audio after edits, with no generation allowance or ledger mutations. |
+| `deviceAgent` source/edit commit, web/native portable agent adapters | Device execution is disabled until actual provider/tool bounds are verified. Authenticated, versioned document commits persist generated edits without keys. No server inference or paid fallback. |
+| `deviceNarration` source/save/saved; private GeneratedRecordings | Generation capability false, native/browser adapters remain gated. Bounded private finalized audio persists through authenticated document access and quotas. Sync and keyless replay use no Pro credits. |
+| Browser BYOK text/autocomplete; native NativeBYOK/JS bridge | One OpenRouter key, fixed endpoint/model/settings, no app proxy, redirects rejected, no retry/fallback. Browser session memory; native device-only Keychain. Retired-key fingerprints guard late output after removal. Unsupported image/audio/agent modalities remain closed. |
+| Native FoundationModels / local AVSpeech narration | Free local capabilities, truthful availability, one account source preference. Apple Intelligence requires actual runtime availability; unsupported browsers cannot simulate it. Saved playback stays free after exhaustion. |
+| `tts.startDocumentTts/startArticleTts`, listen/settings metadata | Legacy synthesis refuses before worker admission. Direct provider/voice changes rejected; options/catalog never contact an upstream. Old stored configuration remains inert for compatibility. Playback resolves latest account-owned saved job rather than current voice hash. Another reader's newer job cannot shadow or be deleted by the caller. |
+| document/article TTS workers, chunk helper, provider factories | Cached completed chunks remain reusable. Uncached synthesis and all three legacy factories refuse without key resolution. Worker retry cannot reopen cloud synthesis. UI regeneration no longer deletes saved audio before a closed route. |
+| `config.updateLlmConfig`, profile settings, legacy policy/config reads | Arbitrary model/provider/tool updates denied. Only opt-in suggestions and playback speed remain in user settings. Historical policy/config records remain stored and cannot activate a paid runtime. |
+| `/api/billing/stripe-sandbox`, sandbox checkout/portal | Dedicated test credentials only, owner-audited eligibility, signed bounded raw webhooks, current provider reads and durable lifecycle fences. Fixed origin, redirects denied, bounded response/deadline and zero SDK retries. Live checkout off. Actual configured smoke unmet. |
+| `/api/billing/apple-sandbox`, gate/claim, native StoreKit | Dedicated Sandbox only, signed trust/account/product/group/period checks and current status reads. No client receipt grants access by itself. Status transport now exact Sandbox origin, numeric IDs, redirect rejection, 1 MiB body cap and 10-second deadline through streamed bodies. Signing time is not API-read freshness. Internal purchase build flag remains absent; production/simulator purchase disabled. OCSP/configured service/distribution acceptance unmet. |
+| Ordinary uploads, document/drawing sync, article import, saved audio manifests, backup/font/render helpers | Continue ordinary storage/content behavior. These are not AI inference transports. They cannot supply legacy provider dispatch; existing user documents and recordings are preserved. |
+
+Production app-owned AI inference is closed until separately authorized actual service preflights pass. A server key or environment flag cannot certify provider access, quality or metering bounds. Local fixtures explicitly inject transports, never establish cloud availability.
+
+## Reproduced findings and fixes
+
+Every concrete implementation finding below has an observed failing contract before its fix in `291-evidence/red-*.log`, with matching green evidence:
+
+- Multilingual long-context clipping did quadratic encoding work (55,514,618 characters). Bounded code-point clipping now limits work and preserves UTF-8 limits.
+- Narration operation recovery exposed account-owned audio after document permission revocation. Document access is now checked before recovery.
+- Agent dispatch trusted reservation-era eligibility. Durable attempt authorization now checks active eligibility and dated/fenced entitlement at actual dispatch, including after async key resolution.
+- Legacy GET forwarding/model discovery, direct model settings and TTS factories still bypassed the mode boundary. Forwarders and factories are closed; direct settings are strict.
+- Legacy chat originally reached a closed route without a coherent outcome. That initial denial preserved history but did not complete S3. The source-selected replacement and its remaining proof gaps are recorded below.
+- Stale text source accepted a paid reservation; unverified production text was selectable. Both are rejected before reservation and old production workflows have no provider runtime.
+- The injected text provider could resolve a key without authorization. Authorization now precedes key resolution and actual SDK HTTP dispatch.
+- Apple rejected freshly retrieved valid status because signedDate was older than five minutes; default SDK reads had no application response/time bound. Current reads now establish freshness with bounded transport; signatures/expiry/future-time checks remain.
+- Private generated images could be stored with public blob access. The replacement uses private SDK writes with a dedicated token and app-only saved URLs; delivery checks current document access and registered lifecycle, rejects redirects, bounds PNG bytes/pixels and disables shared caches. Local synthetic storage proves the contract. No actual bucket configuration/read/write is claimed.
+- Saved audio was tied to the currently selected voice, and another account's newer job could shadow playback. Saved lookup/deletion is account-scoped and independent of obsolete voice settings.
+- Legacy voice discovery still contacted an upstream; direct voice updates remained writable. Discovery now reports unavailable without external requests.
+- Document/article regeneration could delete old audio before failing at a closed route. Those controls now show unavailable and preserve saved recordings.
+- Ordinary profile edits could overwrite a concurrently changed AI Power preference from a stale snapshot, and the retained speed slider did not update saved playback. Profile writes now patch ordinary subtrees atomically against the current account row; the speed control reads and writes the actual playback preference. Both regressions were reproduced before the fix.
+
+The Apple JWT helper was additionally checked with a newly generated synthetic P-256 key: P1363 signature, fixed audience/bundle and five-minute token expiry all passed. This is local transport evidence only.
+
+## Final local behavior evidence
+
+Evidence root: `/tmp/lexidraw-276-implementation/291-evidence`. The result manifest lists exact files and final check counts. Web suites run in separate Bun processes to avoid module-mock contamination, always with `--no-env-file` and synthetic env preload. Relevant ledger/billing/device suites cover grants/revocation, two-client credit admission races, exhaustion, renewal/no rollover, technical-failure refunds, durable unknown recovery, cancellation, account switching, stale-source rejection and Sandbox/live isolation. Artifact suites cover private finalization, document permission revocation, generated edits/image receipts, keyless audio lookup, quota/idempotency and stale upload identity.
+
+Credential suites exercise synthetic OpenAI/Anthropic/OpenRouter and opaque keys, known recoverable encodings, URLs/headers/bodies, redirects, browser storage/telemetry, provider errors/output echoes, native bridge/transport and late egress after removal. Binary transports fail closed when inspection cannot be synchronous. These checks do not claim detection of arbitrary ciphertext or steganography, or defense against a compromised runtime.
+
+The fresh #291 loopback host mounts production web AI Power, document-action and recording controls. It uses authenticated synthetic Alice, file SQLite persistence, the real common ledger, actual schema, SqlAgentDocuments permission/revision adapter and GeneratedRecordings finalization. Deterministic injected provider responses stay on loopback; the browser intercepts the sole OpenRouter text connection check. `browser-proof.json` records successful setup/removal, zero key leakage to app requests, zero real external requests, completed generated edits and persisted accounting. `browser-recording.json` proves a fresh browser context with no key receives private saved recording controls. Silent PCM is synthetic and not provider output quality evidence.
+
+T3 preview was used first and its initial screenshot preserved. It later explicitly reported no automation host; the permitted headless browser fallback completed the journey. Native BrowserHarness uses the actual production composer/player and authenticated #291 host, forwarding account preference and artifacts to the same persistent database. `native-snapshot-final.txt` and `native-shared-result.png` show the keyless second-device saved edit and exact charged result. The separate recording scenario uses no provider key and no enabled generation capability. A synthetic allowance-exhaustion stimulus sets only the fixture period to zero. A fresh keyless browser still receives audio controls, and the native player retrieves and plays the saved one-second silent artifact. Native playback is then explicitly stopped. This UI stimulus is separate from the real ledger admission/exhaustion contracts, and from physical audio acceptance.
+
+Final verification includes web typecheck, six explicit native TypeScript projects, portable native bundle, focused Swift contracts, unsigned production native build, unsigned fixture harness build, network-blocked synthetic Next production build, OpenAPI copies/parity, node schema parity, Biome and diff checks. The known broad root baseline (892 pass, 49 fail, 37 errors) was not rerun or claimed fixed. Obsolete initiative-caused settings/TTS mock expectations were updated; a stale built Drizzle schema was rebuilt locally before adapter tests. No broad root build or production env wrapper was used.
+
+Frontend bars opened: state, types, data and components. Full routed grep evidence is `frontend-bars.txt`. Representative final matches: `settings-form.tsx: useState`, `schema.ts: z.strictObject`, `pro-trial.tsx: api.pro.textCapability.useQuery`, `settings-form.tsx: "use client"`. Removed catalog mirror effects and obsolete model/voice controls; only event-owned UI state remains for the changed settings flow.
+
+## Full feature gap matrix
+
+| Ticket | Local evidence | Remaining external/acceptance criteria |
+| --- | --- | --- |
+| 277 shared contract | Strict schemas, common preference and capability gates | Full initiative independent review and separately approved migration/release. |
+| 278 web BYOK | Session memory/egress and fresh setup/removal fixture | Actual authorized provider account/browser CORS, representative text quality and paid access. |
+| 279 native BYOK | Device-only Keychain/bridge/transport contracts and build | Actual authenticated physical provider success, configuration and representative output. Prior manifests report an earlier attempted invalid-provider fixture call; this audit made no such call. |
+| 280 shared Pro ledger/text | Persistent races, fences, refunds, unknown recovery, billing sharing | Actual mini account/parameter/quality/complete output-cost preflight; hosted durable workflow restart behavior. Production text remains closed. |
+| 281 local speech | Native local speech contracts; earlier physical background/Pause evidence | Physical locked replay, lock-screen controls, headphone removal and real interruption recovery. |
+| 282 Apple Intelligence | Native availability/generation contracts; earlier real physical English/Japanese generation | Device availability remains runtime dependent; broader authenticated deployed account integration untested. |
+| 283 autocomplete | Shared source boundaries, revocation, opt-in, UTF-8 clipping regression | Actual BYOK/Pro account access and quality; Pro closed; physical remaining audio gates unchanged. |
+| 284 images | Bounded artifact/UI fixtures, document/drawing preservation and image contracts | Actual model access, routing/quality/complete pricing/output bound; private-store provisioning and externally authorized configuration proof. Private saving/delivery implemented locally; generation remains closed. Dashboard cover separate manual journey not claimed. |
+| 285 Pro narration | Ledger/permission/recovery/artifact contracts | Actual voice account access, enforceable audio billing/output bound, pronunciation/quality, hosted workflow/media capacity. Closed. |
+| 286 BYOK narration | Portable checkpoints, private artifact sync and keyless playback contracts/UI | Actual speech endpoint/account/PCM format/output-cost bounds and external recovery service. Closed. |
+| 287 Pro agents | Whole-action fixture saved edits/search/accounting; late eligibility recheck | Actual tuned mini/search account access and quality; complete paid bounds; actual private-store configuration; real sandbox service complete pricing/isolation/lifecycle and delegation provider proof; hosted workflow. Local D2 operation-bound authorization and execution are supplied below. Closed. |
+| 288 device agents | Direct controller/document commit and credential contracts | Actual provider planning/tool quality/account/bounds; image gate; external recovery. Browser/native agent transport closed. |
+| 289 web Sandbox | Real SDK/signature fixtures, persistent lifecycle/race/refund/renewal contracts | Configured Stripe checkout/portal, delivery/retry and actual Sandbox lifecycle. No external smoke or write. |
+| 290 Apple Sandbox | Real SDK synthetic trusted signatures, persistent lifecycle plus bounded status HTTP | Configured product/key/group/API/OCSP access, real Sandbox purchase/restore/notification, physical internal distribution. No actual/local StoreKit purchase. |
+| 291 integration | Reproduced audit fixes, final contracts/types/build/UI evidence | Parent fresh independent review, unresolved physical gates, all actual provider/payment/deployment criteria above. #276 remains incomplete. |
+
+## Physical provenance and blocked criteria
+
+Earlier genuine evidence is preserved in `physical-verification.json` and the existing #283 physical screenshots/recordings: M1 iPad `00008103-001E081C1A79001E`, real FoundationModels English/Japanese, local AVSpeech about ten seconds, background and Control Center Pause. Those are earlier observations, not repeated #291 proofs.
+
+#291 first used T3 device list/open. The physical iPad was explicitly unsupported there; authorized devicectl fallback initially reported paired but tunnel disconnected, DDI unavailable, last connection 2026-10-10 11:56 UTC. A later bounded details probe connected over the existing local-network pairing and confirmed DDI/developer services. The final lock-state probe returned `passcodeRequired: true` and `unlockedSinceBoot: true`; no passcode/unlock action was attempted. A concise asynchronous reconnect/unlock/hardware-help request was made; no answer or reconnection is treated as approval or evidence. Locked playback/lock-screen/headphone removal/actual audio interruption remain blocked until the user unlocks the device to start the controlled local narration run and can perform the lock/headphone/interruption actions. Cached manual signing is authorized, but no locked-device app install/launch or new signing was attempted in this audit. No volume/passcode/credential changes, purchases, provisioning updates or production app data changes occurred. Simulator evidence never substitutes for these gates.
+
+The first two pool leases conflicted with prior agent-device sessions. Their sessions were preserved and only our lease membership was removed under the pool lock, without shutdown. A safe existing Pool iPad 2 was then used. No simulator clone, other writer or worktree was created.
+
+## Staged migration and release policy
+
+1. Before any future production denial, release coherent account settings/chat/listening notices explaining one account source, supported capabilities and unavailable legacy cloud services. This local branch includes those notices together with closed routes for audit. Before production ships the denial patch, the owner must first deliver the notice through an approved existing announcement channel or a separately reviewed notice-only patch and confirm delivery, including older native clients. No production notice was delivered here, and staged rollout acceptance is not claimed. Existing documents, drawings, API tokens/user keys and saved recordings are retained; old provider configurations stay inert rather than being erased.
+2. Confirm private eligibility audit, actual feature preflight and authenticated artifact delivery. Keep each unresolved capability Coming soon. Existing saved content remains readable/replayable without a generation allowance or provider key. Never ask users to send device provider keys to our server.
+3. Only after separate user authorization, plan remote migrations and one batched final release per affected app, inspecting branch remote deployment configuration before any push/merge. This task performs none of those actions. No production migration, cloud build, hosted preview, CI, deployment, release preparation, auth setting change, paid request or payment write occurred.
+
+Public Pro stays Coming soon, live checkout off. Private cancellation terms are disclosed as test policy; public terms remain unresolved before launch. Parent owns graph/tracker/PR lifecycle and final independent review; none was modified here.
+
+## Final review fixes from pinned `a0353455`
+
+The sole-writer local follow-up addresses Standards S1-S6 and the shared-document-mechanics judgment J1, plus Spec S1 from the independent pinned review. Mixed valid percent escapes and malformed ordinary text can no longer conceal a configured or retired credential at web network/storage boundaries; the analogous Swift invalid-UTF-8 run is also guarded. Persisted agent attempt descriptors are strictly validated before paid steps and accounting. Device checkpoint types require their phase/status payloads, narration explicitly maps pending/error/empty query states, playback resets through component lifetime, and the affected controls use the existing design system. Browser-facing result types derive from type-only router outputs.
+
+Access reads, block construction and revision compare-and-swap are shared between Device and Pro writers. Receipt transactions remain distinct: Device scopes identity to account/document and enforces credential/quota checks; Pro scopes identity to an operation and updates its report atomically under eligibility/cancellation fences. The extraction preserves those contracts and image-dimension policies.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v1.json`, with actual red/green boundary logs, fresh-process local suites, web/native shared-core typechecks, JavaScriptCore checkpoint verification, Swift credential-guard verification and T3 loopback control interaction evidence. The old ListenPlayer query fixture also failed at the pinned baseline; its fixture is updated and its five playback/focus checks pass. No release or external acceptance is claimed. S2 private image delivery now has local implementation and evidence below. S4 period-pinned narration rates and S5 saved-job read-only delivery now have local implementation and evidence below. S3 subsequently received the local source-selected migration below; its external provider proof remains pending. No scope revision or spec completion is claimed. Actual provider/payment, physical audio and deployment criteria remain open, and #276 is incomplete.
+
+
+## S2 authenticated private images, local follow-up
+
+`GeneratedImages` stores only a stable `/api/generated-images/<id>` URL in its receipt/table, never a Blob/provider URL. Production storage uses the installed `@vercel/blob` private `put` and `del` APIs, with a dedicated `PRIVATE_IMAGE_BLOB_READ_WRITE_TOKEN` (its store identity follows the installed SDK token format). It cannot fall back to the public bucket. The installed SDK `get` follows fetch redirects, so the private read instead constructs the fixed private Blob origin from that store identity and uses redirect rejection, storage-only authorization, a deadline and bounded PNG metadata/stream consumption. No incoming app cookies/tokens or provider keys enter storage requests.
+
+The app delivery route requires web cookie or native API-token authentication, checks the current entity access before and after storage reads, and requires registered lifecycle. Shared readers may view; shared editors may register. Revoked shares, deleted documents, anonymous requests and pending/abandoned artifacts cannot read. Output verifies the saved byte count/hash and fixed 1024×1024 PNG structure/pixels, rejects SVG/metadata/SDK envelopes, and uses private no-store responses varying on Cookie and Authorization. Saving and reads have no generation, Pro eligibility, allowance or provider-key prerequisite. Pending upload leases, quotas, duplicate receipts and repeat abandoned-part cleanup are preserved.
+
+Web image insertion already uses the authenticated save mutation and ordinary same-origin image rendering. Device document-agent upload now uses that private registration, and the Pro document adapter factory shares the same store. The provider executors remain gated. Native save resolves only a validated app image path; the document loader reads it with the current app token using an isolated transport that rejects redirects, has no cookies/cache and bounds body consumption. Private images bypass the global public-image cache. The native media parser admits exactly the relative private-image app path, so web/agent saved document nodes reach that authenticated loader. Other relative sources stay rejected.
+
+Evidence: `/tmp/lexidraw-276-implementation/291-private-images-v1.json` and `291-private-images-evidence/`. Red/green cycles cover stable saved URLs/current permissions, private adapter request/type/stream bounds, the actual delivery route, native credential origin/read behavior, agent insertion and partial-upload retries/cleanup. Sixty relevant web tests pass in sixteen fresh env-free, network-closed processes. Web and native shared TypeScript checks pass. Twenty-eight relevant Swift tests and the local generic iOS Simulator application build pass. T3 preview mounts the production image provider/editor and delivery handler against synthetic in-memory SQLite/storage/provider responses: one generation saves and renders a 1024×1024 image; keyless reload renders it again; document deletion returns 404 and the existing unavailable placeholder; anonymous read returns 401. This is synthetic local evidence, not provider quality, physical-device or actual Blob-service verification. No bucket calls, cloud writes, deployment or release work occurred.
+
+
+## Narration spec follow-up (local S4/S5)
+
+The sole-writer follow-up from `2870a5e7909b691a298e98790187070dd2310a37`
+adds a durable period rate envelope in the existing SQL text column. Text and
+narration books were copied at period creation. At that checkpoint gated
+image/agent books used a first-period-quote pin. That policy did not satisfy
+entire-period pricing stability and is superseded by the supplier-cost and D3
+follow-up below. Text/autocomplete maxima and disclosures
+use the period book, and agent charges use its credit conversion. Historical
+operation books remain valid for reservation/recovery/settlement. Text-only legacy
+v1 periods deterministically map to the archived narration v1 book; first prior
+image/agent operations retain their pins. Lazy envelope materialization changes
+no grant or credit counters. No remote schema or data migration occurred.
+
+Narration quotation, consent and reservations use the same period book, final
+maximum and period/revision identity. Paid retries retain operation caps and
+supplier cost remains separate. A provider-free `SavedNarrationReader` supplies
+account-owned snapshots and cached/historical audio after current document-access
+checks. Reads never execute or recover generation, resolve provider keys, reserve,
+reconcile or debit. Edited/oversized documents, missing generation, revoked Pro,
+and later empty failures preserve saved recordings and useful parts. Current
+document deletion/revocation and cross-account operation IDs still deny delivery.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-narration-spec-fixes-v1.json`
+and its `291-narration-spec-evidence/` logs. Actual red/green cycles cover saved
+job reads without an executor, rate update/renewal and historical recovery,
+image/agent adapter updates, agent credit conversion, published text maximums,
+oversized edits, hidden older recordings, retained later cached parts and native
+historical-quote restore. Fresh env-free, network-closed Bun fixtures exercise
+authenticated operation boundaries and real SQLite accounting. Explicit web and
+native shared TypeScript checks and focused Swift contracts are recorded in the
+manifest. A synthetic loopback UI host mounts the production web panel and native
+composer/player: both restore prior audio after edits with generation absent and
+eligibility revoked, native playback and browser media time advance, and current
+access revocation removes audio delivery. No new ledger entry or provider call is
+caused by saved playback. Silent fixtures prove media plumbing only.
+
+S3 now has the local implementation and evidence below. #291 and #276 remain incomplete.
+Actual provider/account/model/quality/metering, payment/store verification, hosted
+workflow/media durability, physical audio/lock-screen/interruption and release
+criteria remain unverified. No push, merge, PR edit, cloud CI/build/preview/deploy,
+production API/payment write, real private-store call, release preparation or
+remote migration was performed. Existing draft PR292 remains untouched.
+
+
+## S3 source-selected chat migration (local implementation, external proof pending)
+
+Starting at `31fa631a37007d3d020fc336a211f43c709bfc67`, chat now has one
+portable CHAT contract shared with the native JavaScriptCore bundle. The full
+saved transcript stays visible and stored under existing quotas; it is separate
+from the finite selected request. Web and native review an inclusion summary
+before dispatch, default to two recent complete turns, allow deliberate older
+turn selection (at most 24 prior / 25 total), and include document content only
+through an explicit exact excerpt. Oversized selections require another visible
+choice; no saved turn is clipped or deleted. The current prompt and up to two
+text attachments stay full (1500 UTF-8 bytes each); document excerpts are bounded
+to 1500 bytes and attachment names to 100 bytes. Selected model text, including
+the exact system and attachment/document labels, is bounded to 3584 UTF-8 bytes;
+canonical wire is bounded to 8192 bytes and the authenticated stream envelope to
+16384 actual bytes. Safe Unicode scalars are required. Configured-key guards
+inspect the full archive/document/attachments before any omission, then final
+wire and cumulative output. Existing valid canonical encoding and frozen selected
+quote/accept/stream identity are unchanged, including owned recovery. The 3584
+byte policy plus proposed 512 token framing reserve is not validated tokenizer
+or supplier proof: production chat remains unavailable pending an exact audited
+model/API input bound. Paid limits remain 4096 input / 512 output tokens, 16000
+output bytes, two attempts and 30 seconds with unchanged cost/rate/concurrency
+ceilings; ordinary text/autocomplete retain the global 1500-byte book. Legacy
+settings/history and saved recordings remain intact.
+
+The web composer and native document Chat surface show the selected source,
+capability messaging, safe partial output and Stop. Native account changes clear
+the displayed conversation before authentication, retaining the prior account’s
+stored history without exposing it on authentication failure. Pro uses reviewed maximum
+quotes, unchanged-input/period/rate acceptance, account entitlement and the shared
+ledger's concurrency, spend, retry and uncertainty fences. Replays retrieve the
+existing result without paid dispatch. Lost acceptance responses get one bounded replay of the same reservation key to
+recover its ID for cancellation, never a repeated provider request. Confirmed
+internal retries are absorbed;
+completed cancellation charges once in the accepted period; unknown outcomes stay
+reserved for reconciliation. Browser/native OpenRouter transports attach the single
+device key only at the exact provider endpoint, reject redirects, stream actual
+SSE deltas and guard cumulative wire/output, withholding incomplete tokens before
+publishing. Native local chat streams Apple Intelligence response snapshots, with
+capability checks and no cloud fallback or credit debit. Credential material never
+enters the native shared task request.
+
+Evidence and exact commands are in
+`/tmp/lexidraw-276-implementation/291-chat-migration-v1.json`. Fresh local contracts
+cover shared preparation, source ports, credential echoes/encoded egress, Pro
+quotes/authentication/period changes, cancellation/retry/replay and web/native
+callbacks. T3 loopback browser and a leased pooled simulator demonstrate the actual
+web composer/context and native chat view with saved turns and provider partial
+output. These are injected provider/UI fixtures, not real provider proof. Native
+Pro API contracts and server accounting contracts complement those UI checks.
+
+Production Pro and direct-provider chat remain unavailable until separately
+authorized provider/model/streaming/usage bounds are verified. Native local chat
+is offered only when the actual OS/model/locale reports support; deterministic
+local model tests do not prove supported physical hardware quality. Actual
+provider/CORS, shared hosted execution/restart durability, account/payment/store,
+physical audio/lock-screen/interruption, staged migration messaging and release
+requirements remain open. This migration does not complete #291 or #276 and does
+not authorize a release or amend their scope.
+
+## Standards V2 and terminal chat failure follow-up (local)
+
+The follow-up starts at `9f3eaf92c1c2219d848c075dd80a24ebe61b7677`.
+S7 query access now distinguishes disabled, loading, error (including failed
+refreshes with cached data), and ready before deriving new-generation
+availability. Chat has no default provider while preference is unknown. Image,
+device narration, Pro text, suggestions and AI Power expose query retry. Failed
+reads block new generation while retaining chat history, completed images,
+recording playback/sync and active operation controls. Device narration retains
+its account/document controller across capability refreshes. S8 uses the existing
+file-capable design-system Input with the same accessible label and form props.
+J2 native chat uses associated-value events with required, bounded payloads and
+all six legitimate operation states. Unknown/malformed events and content after
+terminal completion fail closed; valid partial completion and cancellation remain
+covered locally.
+
+Spec V2-S1 validates failed/incomplete terminal response status, bounded identity
+and usage (including cached-token consistency) before recording technical failure.
+Response identities must agree when a creation event was supplied. Validated
+provider error events belong to the authenticated redirect-free request stream;
+no raw supplier diagnostic is returned. Known terminal failure refunds the whole
+customer operation after partial output, without automatically retrying. Measured
+supplier cost remains recorded; missing usage leaves supplier exposure unresolved
+independently of the refunded customer reservation. Malformed terminal evidence
+and disconnects without terminal evidence remain uncertain and reserved.
+
+Exact RED/GREEN and focused local checks are in
+`/tmp/lexidraw-276-implementation/291-standards-fixes-v2.json`. No external
+provider, payment, bucket, production API or release action is claimed.
+#291 and #276 remain incomplete pending parent review and remaining implementation
+and acceptance work. Spec V2-S2 supplier cost-book exposure/bounds/dispatch is the
+next sequential implementation scope. D2 operation-bound sandbox/delegation and
+D3 first-use image/agent rate books remain partial implementation requirements,
+not merely external proof gaps. Previously recorded provider, payment/store,
+hosted durability, physical audio, migration and release criteria remain open.
+
+
+## Supplier attempts and complete period schedules (local V2-S2 / D3)
+
+The sole-writer follow-up from `4254fe7091cf2a9c14bade533dd6fe762aff840a`
+separates the customer period/accepted-operation book from the supplier dispatch
+contract. Before each paid fence the ledger resolves a server-configured,
+verified supplier book (or an explicit synthetic injection for an owner test
+period). It derives the maximum from the exact model, token/audio/image/tool
+caps and rates, checks safe integer arithmetic and known plus unknown paid
+exposure, and atomically stores the attempt with its immutable contract in the
+existing append-only audit table. No schema or remote migration was run.
+Adapters select models and supplier costs from the durable authorization result;
+a supplied context cannot override that result. Text, autocomplete and chat,
+narration, image, and agent phases validate terminal usage/cost and historical
+recovery against their own attempt contract. Missing invoice evidence remains
+unknown supplier exposure, including after successful delivery or a customer
+refund. Invalid invoice evidence on a confirmed technical failure cannot prevent
+the customer refund. Invoice reconciliation remains bounded by the admitted
+contract. Known archived dispatch contracts can recover old attempts; unknown or
+corrupt contracts fail closed without a paid replay. Historical chat used its
+operation book for dispatch while saving the compiled v1 ceiling; recovery
+reconstructs that known dispatch contract and materializes its corrected supplier
+exposure under the accounting lock. Historical text/autocomplete instead map to
+their original compiled supplier configuration. Customer books and grants do not
+change.
+
+`period-rates-v2` snapshots the full configured customer schedule at period
+creation and renewal. Image/agent fields explicitly distinguish `available` with
+a complete book from `unavailable`. Availability requires a configured supplier
+contract as well as customer rates; synthetic schedules require an owner test
+period. A later quote or adapter does not add or reprice a feature in the same
+period. Legacy text-only v1 periods retain the archived narration v1 mapping;
+legacy v1 envelopes preserve already-pinned feature books. Where a legacy feature
+has no pin, its first existing accepted operation supplies the historical book;
+without that evidence it stays unavailable. Materialization changes only the
+period schedule, not its grant, credit counters or accepted operation books.
+Accepted historical work remains recoverable even when a later period is
+unavailable.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-supplier-cost-contract-v1.json`.
+Recorded RED/GREEN cycles include authenticated raised supplier dispatch,
+first-quote period pricing, corrupt saved narration exposure, rejection of a
+supplied dispatch contract, technical-failure refunds with invalid invoice
+evidence, and text/autocomplete output-cap alignment. Fresh env-free,
+network-closed SQLite/injected suites additionally exercise lower supplier rates,
+missing invoices and cost circuits, durable recovery after supplier updates,
+higher-cost narration/image/agent results, renewal and unavailable periods, and
+legacy mapping. Web and native shared TypeScript checks are local. No UI or
+physical-device acceptance is claimed: production generation gates remain closed
+and no Swift or bundled device-generation behavior changed.
+
+D2 operation-bound sandbox/delegation is the next sequential implementation
+scope. Standalone denied routes do not fulfill that requirement. #291 and #276
+remain incomplete pending that work, independent review and the previously
+recorded provider, payment/store, private-storage, hardware, hosted durability,
+migration and release proofs. This follow-up makes no external calls, changes no
+PR, and authorizes no release.
+
+## Operation-bound typed sandbox and delegation (local D2 implementation)
+
+The sole writer follow-up starts at `a8f6442029b0cdfcc7a6683c1ade3f668c2bcefa`.
+The shared agent contracts now support a typed `summarize_numbers` sandbox task
+and one delegated worker at depth one. The worker can plan generation or that
+typed task, then synthesize an edit. It cannot request another worker, arbitrary
+code, a URL, a command, a model, secrets or ambient network access. The existing
+code-runner/legacy executeCode denial supplies no safe arbitrary-code host. The
+installed Sandbox SDK exposes provisioning, inherited environment, persistent
+sessions, and default internet access; its available types do not establish a
+verified complete cost bound. This implementation therefore supplies a narrow
+trusted task-port interface, not an enabled cloud VM or arbitrary-code runner.
+
+`ProAgentOperation` orchestrates each nested model/tool step itself, using the
+same authenticated account, accepted operation, period schedule and durable
+attempt contract. Delegation receives no new grant, independent reservation or
+provider credential. Sandbox reference prices and step maxima are included in
+the full customer action schedule, which the existing period envelope snapshots
+at creation. Supplier exposure uses the attempt's own immutable book. Nested
+planning/synthesis count against the parent's durable cycle and text limits;
+sandbox, search, image, generation and worker admission share the durable tool
+limit. Depth, worker count, step identity, aggregate attempts/exposure, input,
+output, time, concurrency and spend circuits stop further admission.
+
+`createAgentToolProvider` requires the ledger's account/operation/attempt and
+request-hash authorization and writes an immutable dispatch claim under the
+SQLite write lock. Concurrent delivery and a fresh adapter cannot replay that
+claim. Pure local preparation precedes a fresh authorization immediately before
+sandbox dispatch; the SDK model adapter independently rechecks immediately
+before every fixed-endpoint HTTP call and has zero automatic retries. Sandbox
+jobs contain only a typed numeric task, receipt identity and explicit no-network,
+no-secret limits. Trusted provider requests execute outside that job. No sandbox
+code receives an app/provider key or a paid-provider callback.
+
+Known pre-dispatch cancellation records zero supplier spend. A confirmed task
+failure refunds the complete customer action while retaining saved receipts and
+known supplier costs. Invalid or absent invoice evidence retains supplier
+exposure separately. Timeout after dispatch, malformed/oversized output, or a
+missing durable tool supplier contract cannot authorize replay or release an
+uncertain paid outcome. The adapter's six-second local deadline holds uncertainty
+if an injected port ignores cancellation; this is not proof that a real service
+stops spending. Existing document compare-and-swap and receipt recovery remain
+the saved-edit authority, and reports retain completed/incomplete edits.
+
+Evidence: `/tmp/lexidraw-276-implementation/291-operation-tools-v1.json` records
+actual sequential RED/GREEN logs, fresh env-free and network-disabled SQLite/
+provider/task suites, explicit web/native shared TypeScript checks, and schema
+parity checks. The injected SDK/task demo exercises parent planning, delegated
+planning, a key-free typed task, trusted synthesis and a saved document receipt
+under one reservation. Synthetic task prices and SDK responses are fixtures,
+not real supplier invoices, model quality or cloud isolation proof.
+
+Production `serverProAgent()` is still absent. Standalone system-key sandbox and
+delegation remain denied, and BYOK/local agents remain device-only with unsupported
+paid tools unavailable. Enabling a real task port still needs separately authorized
+verification of exact service/model access, complete provisioning/runtime/network/
+cleanup/retry prices, enforceable lifecycle/output/network limits, invoice evidence
+and hosted fence/receipt recovery. No real service was provisioned or called.
+No UI availability was enabled, so no new browser/device acceptance is claimed.
+D2 now has executable local operation-bound implementation; independent review
+and external proofs remain pending. #291 and #276 remain incomplete. No push,
+merge, PR edit, cloud CI/build/preview/deploy, payment/bucket/production API,
+remote migration or release preparation occurred; PR292 remains untouched.
+
+## Standards S9 and targeted Spec V3 follow-up (local)
+
+The sole-writer follow-up starts at `62d67690f8a8eedf48ecfd899c8044e937763572`,
+on the same integration branch, with ancestry from the original base verified.
+S9 keeps retained Pro document-action progress, saved edits and cancellation
+visible when its detail query fails. A fixed stale-progress notice offers a
+read-only query refetch. Initial detail loading and a cached-detail refresh have
+distinct notices. Retry cannot quote, accept, start or debit another action.
+Existing account/document/source ownership and query keys are preserved.
+
+Spec V3-S1 bounds browser BYOK text responses while consuming the body: at most
+64 KiB of wire bytes, exactly one choice, and UTF-8 content ceilings of 256 bytes
+for key-validation text and 1,024 bytes for autocomplete. Outbound token limits
+remain in place. Content is validated before credential scanning and publication;
+oversized, malformed, truncated or cancelled responses use fixed safe diagnostics.
+An abort cancels a pending body read. Both callers of the common `requestText`
+path use these limits; direct chat, agent, image and narration paths retain their
+separate existing guards and closed production capability gates.
+
+Spec V3-S2 replaces whole-response buffering only for native `chat.stream` with
+a guarded NDJSON sequence. It holds incomplete frames, bounds the cumulative
+wire to 1 MiB and individual frames to 128 KiB, and checks the retained raw wire
+and each complete frame's encoded/decoded values before publication. Active and
+retired fingerprints remain effective across transport chunks. Safe complete
+text frames reach `Session.streamChat` before EOF; later errors/cancellation keep
+already delivered text. Ordinary API and artifact whole-body guards are preserved,
+and no BYOK credential is attached to account transport.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v3.json` and
+its `291-standards-fixes-v3-evidence/` logs. Production component render/click
+tests and injected provider-body tests have observed RED then GREEN results.
+Native timing tests traverse actual `Account` credential transport and
+`Session.streamChat`, holding EOF open rather than supplying a complete string.
+Twenty-six relevant web tests pass in six fresh env-free Bun processes;
+the explicit web TypeScript check passes. Twenty native tests in six suites
+pass, including existing ordinary/artifact credential guards and chat account
+isolation. No browser/device or actual provider acceptance is claimed.
+
+The Spec V3 reviewer explicitly did not exhaustively read the full 351-file
+original-base diff. This targeted fix is not full-diff approval. The next
+independent review must explicitly cover the complete original-base-to-final-tip
+diff before approval. #291 and #276 remain incomplete pending independent review
+and the previously recorded provider/model/invoice, private storage, hosted
+durability, Stripe/Apple Sandbox, physical audio, migration and release proofs.
+No push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
+bucket call, remote migration or release preparation occurred. PR292 and the
+read-only pinned review checkouts remain untouched.
+
+### V4 local UI fixes, pending independent review
+
+Starting from `42dbd1b4e9c17723610b5a5ddd5d51dee99dc1f1`, the sole-writer
+follow-up addresses Standards V4-S10, Spec V4-SPEC1, and Spec V4-S1:
+
+- Narration query mapping retains cached progress, quotes, and saved audio while
+  exposing each active failed read. Read retries refetch only their query;
+  cancellation and playback remain usable. Unknown or failed capability and
+  failed active reads block new generation and quote acceptance.
+- The private text form derives its maximum and available-balance admission from
+  the validated status pricebook for the durable entitlement period. Unknown
+  periods/bounds disable admission. The status policy already derives text and
+  autocomplete disclosures from that period; image and agent customer maxima
+  come from router capability/quote outputs. No client accounting authority or
+  server reservation/settlement contract changed.
+- Owned agent reports and cancellation take precedence over pending, failed, or
+  unavailable generation capability. Capability retry is read-only; new quote
+  and accept handlers remain gated. Account checks reject foreign cached
+  operations, detail IDs must match, and account/document keys reset event-owned
+  action state without retaining a second copy of query data.
+
+RED-first production React component render/click tests and query-mapping tests
+cover these changes, including doubled/lower period rates, an unknown period,
+capability failures, and account/document switches. Focused fresh-process Bun
+regressions, explicit web type checking, and formatting results are recorded in
+`/tmp/lexidraw-276-implementation/291-ui-fixes-v4.json`. These are local production
+component renders with injected API ports, not actual-service or hosted proofs.
+
+#291 and #276 remain incomplete. V4 Standards coverage is 63/354 files and does
+not constitute full approval. The parent will schedule bounded independent
+review slices after this local commit. Full review and previously recorded
+provider/model/quality/CORS/invoice, private storage/hosted durability,
+Stripe/Apple Sandbox, physical audio, migration, and release proofs remain
+pending. Prior fixes/manifests and pinned V4 review inputs remain intact. No
+push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
+bucket API, remote migration, release preparation, or master integration ran.
+
+## V5 native batch01/batch02 bounded fixes — local verification
+
+Starting from `cc12ac2feb49773227279bd49b588b3337588a04`, the native sole-writer
+follow-up addresses B01-N1/N2/N3, V5-B01-S2/S3, B02-N1/N2/N3, and
+V5-B02-S1. V5-B01-S1/S4/S5 and V5-B02-S2 share the corresponding fixes;
+B02-J1 now uses the shared native OperationState.
+
+- Existing agent reports load independently of generation capability. New quote
+  and acceptance remain gated. Agent and narration flows retain useful owned
+  snapshots after transport failures, disclose stale reads and unconfirmed
+  cancellation, offer read-only recovery, and clear sensitive state when access
+  is denied. Composer lifetimes reset with sign-in/document identity. Reading an
+  agent report or requesting its durable cancellation no longer requires a
+  generation executor; authenticated account/document checks remain in force.
+  Reads do not recover, dispatch, debit, or settle uncertain paid operations.
+- Native autocomplete admission uses validated server maxima derived by shared
+  math from the active durable period. Missing/invalid periods or maxima block
+  new requests visibly. Settled text remains publishable when a subsequent
+  allowance read fails or returns zero; that read gates only future requests.
+  The initial submission retains its input/key and uses bounded same-key replay
+  or authenticated lookup to recover uncertain acceptance. It never silently
+  allocates a fresh paid identity for uncertain work.
+- Saved playback carries a typed Pro/device source into both composer and
+  generic Listen entrypoints, preserving the same source-specific resume key.
+  Stopping a device action during its initial document read prevents checkpoint
+  persistence and dispatch. Ordinary account transport bodies have finite
+  endpoint budgets during collection before credential scanning. Typed raw PCM
+  and exact canonical WAV adapters permit incidental gzip/ZIP sample bytes while
+  preserving credential-echo detection and malformed/compressed envelope refusal.
+
+Meaningful RED-first production flow tests and actual editor/Listener XCTest
+cases cover these corrections. Final local verification passed 56 Swift tests,
+six editor XCTest cases, 34 Bun tests, explicit web and native shared TypeScript
+checks, project regeneration, and cached Lexidraw/BrowserHarness simulator
+builds. The deterministic recovery harness uses the production action/narration
+views, but interactive driving was blocked by device automation session ownership
+conflicts; its runtime UI acceptance is not claimed. No actual provider or
+physical audio/device proof was performed. The manifest contains exact logs,
+commands, failure/setup distinctions, overlap mapping, and queued responses:
+`/tmp/lexidraw-276-implementation/291-native-batch01-fixes.json`.
+
+#291 and #276 remain incomplete. B03-N1/N2/N3 remain queued (direct-provider
+receive bounds, cleanup failure isolation, and fingerprint admission/checkpoint
+contract); V5-B03-S1 duplicates B03-N1. V5-B03-S2 (one credential generation per
+explicit narration resume) remains queued separately. V5-B03-S3/S4 storage scope
+and durable image-upload identity, and V5-B02-S3 authenticated production-router/
+ledger autocomplete acceptance, are parent-queued sole-writer follow-ups. These
+are unresolved findings, not met requirements. Full independent review and all
+previously recorded hosted/provider/storage/payment/migration/release proof gaps
+remain open. Prior manifests and pinned read-only review batches remain intact;
+unrelated workflow, README, package, Vercel, environment and release files are
+excluded. No push, merge, PR edit, cloud CI/build/preview/deploy, production API,
+paid provider, payment/bucket call, remote migration, release preparation, secret
+environment read, or master integration ran.
+
+## Chat lifecycle and authorization follow-up (local, hosted proof pending)
+
+Starting at `7c8aa92c0f90a3cf830abdf381e7455f09fdeb87`, the Pro chat stream
+route enforces token mutation scope at its own authenticated wrapper: a
+read-scope API token receives 401 and no paid dispatch, while write-scope tokens
+and cookie sessions keep their current ownership checks. The route test drives
+the real `POST` with real token resolution; only the closed capability and the
+provider network are substituted.
+
+A dropped connection now detaches the subscriber only. The provider run and its
+ledger settlement continue under a request-lifetime adapter (`retain`, bound to
+Next `after()` in production with a 60 second `maxDuration` above the 30 second
+pricebook bound), and only the explicit `pro.cancel` endpoint aborts further
+provider work. Uncertain outcomes stay reserved without a cancellation request,
+and a repeated stream request for a running operation never dispatches again.
+Web and native clients distinguish an explicit Stop from leaving the surface:
+Stop cancels under the existing disclosed policy, while unmount, navigation,
+document switching and an acceptance ID arriving after detach issue no
+cancellation. A declined quote is a typed non-failure with no reservation, and
+Stop with no active turn no longer reports a busy chat.
+
+Open: whether `after()` keeps a serverless invocation alive to provider
+completion after a client disconnect is not proven locally and needs hosted
+proof before the Pro chat gate opens. A reservation accepted but never streamed
+after a detach stays reserved until a recovery surface exists. The coherent
+conversation/context budget, private-image cleanup and anonymous image ACL,
+Unicode slicing, native recovery UI/storage/admission and StoreKit restore
+findings remain queued. Manifest:
+`/tmp/lexidraw-276-implementation/291-chat-lifecycle-auth-fixes.json`.
+
+## Owned operation recovery (local follow-up from 12c02429)
+
+Owned autocomplete lookup now checks account, feature, original key and bounded
+input identity independently of opt-in, selected source, entitlement and new
+provider admission. Native submission loss uses this reader rather than another
+submission. Known-ID lookup failure and explicit editor cancellation reach a
+shielded owner cancellation, retaining uncertain outcomes. Narration saved reads
+cannot replace a pending acceptance. Web and native outer document-action
+composers retain owned reports and cancellation when preference/capability reads
+fail or the source changes; failed acceptance retains its quoted key, and a read
+retry does not discard that key or decline the action.
+
+New chat reservations bind a non-secret document ID atomically with the existing
+account operation in local migration `0031_pro_chat_recovery`. Account/document
+read and explicit cancellation require current document access, independently of
+new-generation admission; reads never dispatch, repeat generation or expire an
+issued attempt. Web and native recovery surfaces expose every outstanding
+operation and the latest terminal result, including accepted-before-stream
+navigation detach. Unissued reservations release only on explicit owner cancel;
+completed work remains charged and unknown issued work remains reserved. Earlier
+hash-only reservations remain separately labelled account-owned work, with no
+invented document origin. No prompts or attachment content were added to durable
+storage. A lost native/web acceptance retains its original client submission
+identity; recovery reads never replace it with a new paid key.
+
+The existing BrowserHarness autocomplete journey passed after its active-period
+fixture was aligned. A separate native EditorView acceptance test used the real
+HTTP bearer resolver, production Pro router and file-backed ledger, with a
+synthetic provider adapter: one provider attempt, 31,000 subcredits charged,
+remaining reservation released, and text inserted only on explicit acceptance.
+This is local integration proof, not real supplier or hosted execution proof.
+Exact RED/GREEN logs, setup failures, owned paths and checks are in
+`/tmp/lexidraw-276-implementation/291-owned-recovery-fixes.json`.
+
+#276/#291 remain incomplete and production gates stay closed. Hosted `after()`
+lifetime, real provider/hardware/storage/payment/migration/release evidence and
+all unrelated prior objections remain open. Audio S-D1/S-D2 (D728-S1/S2), the
+possible corrupt/oversized cold-checkpoint attach lock S-D5, web deferred blur
+V5-B08-S1, web lost-submission adapter V5-B08-R2 and period quote floor remain
+queued; this slice does not claim those requirements met. Native detector
+saturation testing runs in a separate process. The new migration was applied only
+to local synthetic ledgers. No push, merge, cloud/provider/payment/storage call,
+production migration, release preparation or master integration occurred.

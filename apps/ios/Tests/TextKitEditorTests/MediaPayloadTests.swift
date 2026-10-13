@@ -49,3 +49,12 @@ import Testing
     #expect(MediaPayload(["type": "image", "src": "file:///private/token"])?.source == nil)
   }
 }
+
+@Test func savedPrivateImagePathReachesTheAuthenticatedLoaderWithoutAdmittingOtherRelativeSources() {
+  let path = "/api/generated-images/11111111-1111-4111-8111-111111111111"
+  #expect(MediaPayload(["type": "image", "src": .string(path)])?.source?.absoluteString == path)
+  #expect(MediaPayload(["type": "inline-image", "src": .string(path)])?.source?.absoluteString == path)
+  for source in ["/image.png", path + "?token=secret", "/api/generated-images/%2e%2e", "//evil.test" + path] {
+    #expect(MediaPayload(["type": "image", "src": .string(source)])?.source == nil)
+  }
+}

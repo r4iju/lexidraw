@@ -1,3 +1,4 @@
+import { PowerPreferenceSchema, powerPreference } from "~/lib/byok/preference";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
@@ -14,7 +15,7 @@ import {
   writerProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { type drizzle, eq, inArray, sql } from "@packages/drizzle";
+import { type drizzle, eq, sql } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
 import { deleteAccount } from "~/server/account/delete-account";
@@ -46,6 +47,42 @@ async function identityOf(db: typeof drizzle, userId: string) {
 }
 
 export const authRouter = createTRPCRouter({
+  getPowerPreference: protectedProcedure.query(async ({ ctx }) => {
+    const [user] = await ctx.drizzle
+      .select({ config: schema.users.config })
+      .from(schema.users)
+      .where(eq(schema.users.id, ctx.session.user.id));
+    const preference = powerPreference(user?.config?.aiPower);
+    if (preference.mode === "pro") {
+      const [access] = await ctx.drizzle
+        .select()
+        .from(schema.proEligibility)
+        .where(eq(schema.proEligibility.accountId, ctx.session.user.id));
+      if (access?.active !== 1) return { mode: "local" as const };
+    }
+    return preference;
+  }),
+  setPowerPreference: protectedProcedure
+    .input(PowerPreferenceSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (input.mode === "pro") {
+        const [access] = await ctx.drizzle
+          .select()
+          .from(schema.proEligibility)
+          .where(eq(schema.proEligibility.accountId, ctx.session.user.id));
+        if (access?.active !== 1)
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Private eligibility required",
+          });
+      }
+      await ctx.drizzle
+        .update(schema.users)
+        .set({
+          config: sql`json_set(coalesce(${schema.users.config}, '{}'), '$.aiPower', json(${JSON.stringify(input)}))`,
+        })
+        .where(eq(schema.users.id, ctx.session.user.id));
+    }),
   signUp: publicProcedure
     .input(getSignUpSchema())
     .mutation(async ({ ctx, input }) => {
@@ -110,96 +147,27 @@ export const authRouter = createTRPCRouter({
 
       const currentConfig = currentUser[0]?.config ?? {};
 
-      // Validate LLM configs against policies
-      const modes: ("chat" | "agent" | "autocomplete")[] = [
-        "chat",
-        "agent",
-        "autocomplete",
-      ];
-      const policies = await ctx.drizzle
-        .select({
-          mode: schema.llmPolicies.mode,
-          allowedModels: schema.llmPolicies.allowedModels,
-          enforcedCaps: schema.llmPolicies.enforcedCaps,
-        })
-        .from(schema.llmPolicies)
-        .where(inArray(schema.llmPolicies.mode, modes));
-
-      const policyMap = new Map(policies.map((p) => [p.mode, p] as const));
-
-      // Validate each mode's config if provided
-      for (const mode of modes) {
-        const userConfig = input[mode];
-        if (!userConfig) continue;
-
-        const policy = policyMap.get(mode);
-        if (!policy) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `No policy found for mode: ${mode}`,
-          });
-        }
-
-        // Validate model if both provider and modelId are provided
-        if (userConfig.provider && userConfig.modelId) {
-          const isAllowed = policy.allowedModels.some(
-            (allowed) =>
-              allowed.provider === userConfig.provider &&
-              allowed.modelId === userConfig.modelId,
-          );
-
-          if (!isAllowed) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Model ${userConfig.provider}:${userConfig.modelId} is not allowed for ${mode} mode. Allowed models: ${policy.allowedModels.map((m) => `${m.provider}:${m.modelId}`).join(", ")}`,
-            });
-          }
-        }
-
-        // Validate maxOutputTokens against enforced caps if provided
-        if (
-          userConfig.maxOutputTokens &&
-          userConfig.provider &&
-          policy.enforcedCaps?.maxOutputTokensByProvider
-        ) {
-          const providerCap =
-            policy.enforcedCaps.maxOutputTokensByProvider[
-              userConfig.provider as keyof typeof policy.enforcedCaps.maxOutputTokensByProvider
-            ];
-          if (
-            providerCap !== undefined &&
-            userConfig.maxOutputTokens > providerCap
-          ) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Max output tokens (${userConfig.maxOutputTokens}) exceeds the cap for ${userConfig.provider} (${providerCap}) in ${mode} mode`,
-            });
-          }
-        }
-      }
-
-      const llm = currentConfig.llm ?? {};
       const nextConfig = {
         ...currentConfig,
-        llm: {
-          ...llm,
-          chat: applyOverrides(llm.chat, input.chat),
-          agent: applyOverrides(
-            (llm as { agent?: Record<string, unknown> }).agent,
-            input.agent,
-          ),
-        },
         // Autocomplete has its own engine, which reads this key.
         autocomplete: applyOverrides(
           currentConfig.autocomplete,
           input.autocomplete,
         ),
         tts: applyOverrides(currentConfig.tts, input.tts),
+        audio: applyOverrides(
+          currentConfig.audio,
+          input.tts ? { preferredPlaybackRate: input.tts.speed } : undefined,
+        ),
         ...(typeof input.autoSave === "boolean" && {
           autoSave: { ...currentConfig.autoSave, enabled: input.autoSave },
         }),
       };
 
+      // Patch ordinary subtrees against the current row, preserving a concurrent AI Power change.
+      let config = sql`json_set(coalesce(${schema.users.config}, '{}'), '$.autocomplete', json(${JSON.stringify(nextConfig.autocomplete ?? {})}), '$.tts', json(${JSON.stringify(nextConfig.tts ?? {})}), '$.audio', json(${JSON.stringify(nextConfig.audio ?? {})}))`;
+      if (typeof input.autoSave === "boolean")
+        config = sql`json_set(${config}, '$.autoSave', json(${JSON.stringify(nextConfig.autoSave)}))`;
       await ctx.drizzle
         .update(schema.users)
         .set({
@@ -207,8 +175,7 @@ export const authRouter = createTRPCRouter({
           email: input.email,
           // A proof covers the address it was made for, never a new one.
           emailVerified: sql`case when ${schema.users.email} = ${input.email} then ${schema.users.emailVerified} end`,
-          config:
-            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
+          config,
         })
         .where(eq(schema.users.id, ctx.session.user.id));
       return;

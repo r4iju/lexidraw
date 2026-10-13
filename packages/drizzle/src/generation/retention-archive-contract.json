@@ -1,0 +1,428 @@
+{
+  "declarations": {
+    "LegacyDocumentRetentionV1": {
+      "name": "LegacyDocumentRetentionV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceTable": {
+          "name": "sourceTable",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceId": {
+          "name": "sourceId",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceDDL": {
+          "name": "sourceDDL",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceColumns": {
+          "name": "sourceColumns",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceValues": {
+          "name": "sourceValues",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mappedEntityId": {
+          "name": "mappedEntityId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "contractVersion": {
+          "name": "contractVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "derivedFields": {
+          "name": "derivedFields",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "LegacyDocumentRetentionV1_sourceSetId_sourceTable_sourceId_pk": {
+          "columns": ["sourceSetId", "sourceTable", "sourceId"],
+          "name": "LegacyDocumentRetentionV1_sourceSetId_sourceTable_sourceId_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "LegacyDocumentRetentionV1_contractVersion": {
+          "name": "LegacyDocumentRetentionV1_contractVersion",
+          "value": "contractVersion = 1"
+        },
+        "LegacyDocumentRetentionV1_status": {
+          "name": "LegacyDocumentRetentionV1_status",
+          "value": "status IN ('retained','converted')"
+        }
+      }
+    },
+    "LegacyDocumentRetentionBatchV1": {
+      "name": "LegacyDocumentRetentionBatchV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceIdentity": {
+          "name": "sourceIdentity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provenance": {
+          "name": "provenance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "documentCount": {
+          "name": "documentCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sharedDocumentCount": {
+          "name": "sharedDocumentCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "LegacyDocumentRetentionBatchV1_sourceIdentity_unique": {
+          "name": "LegacyDocumentRetentionBatchV1_sourceIdentity_unique",
+          "columns": ["sourceIdentity"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "LegacyDocumentConversionV1": {
+      "name": "LegacyDocumentConversionV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceIdentity": {
+          "name": "sourceIdentity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contractVersion": {
+          "name": "contractVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "derivedFields": {
+          "name": "derivedFields",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "destinationValues": {
+          "name": "destinationValues",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "LegacyDocumentConversionV1_sourceIdentity_unique": {
+          "name": "LegacyDocumentConversionV1_sourceIdentity_unique",
+          "columns": ["sourceIdentity"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "LegacyDocumentConversionV1_contractVersion": {
+          "name": "LegacyDocumentConversionV1_contractVersion",
+          "value": "contractVersion = 1"
+        },
+        "LegacyDocumentConversionV1_status": {
+          "name": "LegacyDocumentConversionV1_status",
+          "value": "status = 'converted'"
+        }
+      }
+    }
+  },
+  "physical": {
+    "LegacyDocumentRetentionV1": {
+      "name": "LegacyDocumentRetentionV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceTable": {
+          "name": "sourceTable",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceId": {
+          "name": "sourceId",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceDDL": {
+          "name": "sourceDDL",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceColumns": {
+          "name": "sourceColumns",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceValues": {
+          "name": "sourceValues",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mappedEntityId": {
+          "name": "mappedEntityId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "contractVersion": {
+          "name": "contractVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "derivedFields": {
+          "name": "derivedFields",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "LegacyDocumentRetentionV1_sourceSetId_sourceTable_sourceId_pk": {
+          "columns": ["sourceSetId", "sourceTable", "sourceId"],
+          "name": "LegacyDocumentRetentionV1_sourceSetId_sourceTable_sourceId_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "LegacyDocumentRetentionV1_contractVersion": {
+          "name": "LegacyDocumentRetentionV1_contractVersion",
+          "value": "contractVersion = 1"
+        },
+        "LegacyDocumentRetentionV1_status": {
+          "name": "LegacyDocumentRetentionV1_status",
+          "value": "status IN ('retained','converted')"
+        }
+      }
+    },
+    "LegacyDocumentRetentionBatchV1": {
+      "name": "LegacyDocumentRetentionBatchV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceIdentity": {
+          "name": "sourceIdentity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provenance": {
+          "name": "provenance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "documentCount": {
+          "name": "documentCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sharedDocumentCount": {
+          "name": "sharedDocumentCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "LegacyDocumentRetentionBatchV1_sourceIdentity_unique": {
+          "name": "LegacyDocumentRetentionBatchV1_sourceIdentity_unique",
+          "columns": ["sourceIdentity"]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "LegacyDocumentConversionV1": {
+      "name": "LegacyDocumentConversionV1",
+      "columns": {
+        "sourceSetId": {
+          "name": "sourceSetId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceIdentity": {
+          "name": "sourceIdentity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contractVersion": {
+          "name": "contractVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "derivedFields": {
+          "name": "derivedFields",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "destinationValues": {
+          "name": "destinationValues",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "LegacyDocumentConversionV1_sourceIdentity_unique": {
+          "name": "LegacyDocumentConversionV1_sourceIdentity_unique",
+          "columns": ["sourceIdentity"]
+        }
+      },
+      "checkConstraints": {
+        "LegacyDocumentConversionV1_contractVersion": {
+          "name": "LegacyDocumentConversionV1_contractVersion",
+          "value": "contractVersion = 1"
+        },
+        "LegacyDocumentConversionV1_status": {
+          "name": "LegacyDocumentConversionV1_status",
+          "value": "status = 'converted'"
+        }
+      }
+    }
+  }
+}

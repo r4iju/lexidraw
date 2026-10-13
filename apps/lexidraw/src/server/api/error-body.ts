@@ -1,3 +1,5 @@
+import { ProAdmissionRejected } from "~/server/pro/ledger";
+import type { ProNonAcceptance } from "~/lib/generation/pro-admission";
 import { TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
 
@@ -12,10 +14,13 @@ import { API_ERROR_STATUS, type ApiErrorCode } from "./error-codes";
  * spelled the same way, over MCP.
  */
 export function errorCauseData(cause: unknown): {
+  proNonAcceptance: ProNonAcceptance | null;
   currentUpdatedAt: string | null;
   candidates: AmbiguousHeadingError["candidates"] | null;
 } {
   return {
+    proNonAcceptance:
+      cause instanceof ProAdmissionRejected ? cause.nonAcceptance : null,
     // ISO so a conflict reads the same over tRPC, REST, and the CLI.
     currentUpdatedAt:
       cause instanceof StaleDocumentError

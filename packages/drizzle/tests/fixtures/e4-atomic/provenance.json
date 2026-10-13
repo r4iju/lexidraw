@@ -1,0 +1,8 @@
+{
+  "scope": "Isolated original 0002 only, no full-chain claim",
+  "sql": "Byte copy of packages/drizzle/drizzle/0002_flippant_red_ghost.sql",
+  "journal": "Original 0002 entry only, original entry values/order",
+  "schema": "Read-only copy of e4-original-document/schema.sql with synthetic WebRTC tables required by 0002",
+  "rows": "Independent literal synthetic drawing/share rows; empty Document and SharedDocument",
+  "receipt": "Frozen SHA256 of original SQL bytes and original journal timestamp, independent of runner"
+}

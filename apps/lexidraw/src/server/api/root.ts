@@ -1,3 +1,9 @@
+import { deviceAgentRouter } from "~/server/entities/device-agent-runtime";
+import { agentPowerRouter } from "~/server/pro/agent-runtime";
+import { deviceNarrationRouter } from "~/server/entities/recording-runtime";
+import { narrationRouter } from "~/server/pro/narration-runtime";
+import { imagePowerRouter } from "~/server/pro/image-runtime";
+import { proRouter } from "~/server/pro/router";
 import { htmlBlocksRouter } from "./routers/html-blocks";
 import { createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from "./routers/auth";
@@ -27,6 +33,12 @@ import { nativeSignInRouter } from "./routers/native-sign-in";
 import { embedRouter } from "./routers/embeds";
 
 export const appRouter = createTRPCRouter({
+  deviceAgent: deviceAgentRouter,
+  deviceNarration: deviceNarrationRouter,
+  narration: narrationRouter,
+  pro: proRouter,
+  agentPower: agentPowerRouter,
+  imagePower: imagePowerRouter,
   embeds: embedRouter,
   auth: authRouter,
   crons: cronRouter,

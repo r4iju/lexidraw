@@ -324,8 +324,7 @@ export function InsertImageGeneratedDialogBody({
     >
       {!isConfigured && (
         <p className="text-center text-sm text-destructive p-4 border border-destructive rounded-md">
-          Image generation is not configured.
-          {disabledReason ? ` ${disabledReason}` : ""}
+          {disabledReason ?? "Image generation is unavailable."}
         </p>
       )}
       <Label htmlFor={imagePromptTextareaId}>Image Prompt</Label>
@@ -367,20 +366,12 @@ export function InsertImageDialog({
   const {
     generateAndInsertImage,
     isLoading: isGenerating,
-    isConfigured: isGenerationConfigured,
+    access: generationAccess,
+    retryAccess,
   } = useLexicalImageGeneration();
-  const { data: aiStatus } = api.image.getAiGenerationStatus.useQuery();
-
+  const isGenerationConfigured = generationAccess.kind === "ready";
   const disabledReason =
-    aiStatus && aiStatus.isConfigured === false
-      ? !aiStatus.hasPolicy
-        ? "Create an Image policy in Admin → LLM → Policies (Image) and click Save."
-        : aiStatus.policy?.provider === "google" && !aiStatus.hasGoogleApiKey
-          ? "Missing GOOGLE_API_KEY."
-          : aiStatus.policy?.provider === "openai" && !aiStatus.hasOpenAiApiKey
-            ? "Missing OPENAI_API_KEY."
-            : "Check Image policy provider/modelId and allowedModels."
-      : undefined;
+    generationAccess.kind === "ready" ? undefined : generationAccess.message;
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
@@ -442,6 +433,12 @@ export function InsertImageDialog({
           >
             Generate (AI)
           </Button>
+          {!isGenerationConfigured && <p>{disabledReason}</p>}
+          {generationAccess.kind === "error" && (
+            <Button type="button" variant="outline" onClick={retryAccess}>
+              Retry image access
+            </Button>
+          )}
         </div>
       )}
       {mode === "url" && (

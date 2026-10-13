@@ -1,14 +1,8 @@
 import "server-only";
 
-import type { ModelMessage, LanguageModel } from "ai";
+import type { ModelMessage } from "ai";
 import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import type { AgentEvent } from "@packages/types";
-import { getAiSdkToolMap } from "~/server/llm/tools/registry";
-import { generateUUID } from "~/lib/utils";
-import { generateText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import env from "@packages/env";
 
 export interface CallLlmStepArgs {
   messages: ModelMessage[];
@@ -64,153 +58,10 @@ export class SSEWriter {
 }
 
 export async function callLlmStep(
-  args: CallLlmStepArgs,
+  _args: CallLlmStepArgs,
 ): Promise<CallLlmStepResult> {
   "use step";
-
-  const { messages, system, config } = args;
-  // Note: allowedTools is not used yet - will be used in Phase 4 to map tools
-
-  let model: ReturnType<
-    | ReturnType<typeof createOpenAI>
-    | ReturnType<typeof createGoogleGenerativeAI>
-  > | null = null;
-
-  if (config.provider === "openai") {
-    if (!env.OPENAI_API_KEY) {
-      throw new Error("Missing OpenAI API key");
-    }
-    const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
-    model = openai(config.modelId);
-  } else if (config.provider === "google") {
-    if (!env.GOOGLE_API_KEY) {
-      throw new Error("Missing Google API key");
-    }
-    const google = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY });
-    model = google(config.modelId);
-  } else {
-    throw new Error(`Unsupported provider: ${config.provider}`);
-  }
-
-  const messageId = generateUUID();
-  let accumulatedText = "";
-
-  // For now, use generateText (non-streaming) since we need to collect tool calls
-  // TODO: In Phase 4, we'll use streamText and handle tool calls during streaming
-  const isReasoning =
-    config.modelId.includes("gpt-5") ||
-    config.modelId.includes("o1") ||
-    config.modelId.includes("o3");
-
-  console.log(
-    "[callLlmStep] start",
-    JSON.stringify({
-      provider: config.provider,
-      modelId: config.modelId,
-      isReasoning,
-      messages: messages.length,
-      systemLen: system.length,
-      allowedTools: args.allowedTools?.length ?? 0,
-    }),
+  throw new Error(
+    "Legacy agent paid steps are disabled. Use the bounded parent operation.",
   );
-
-  // Debug: log the last 3 messages with sanitized structure for diagnostics
-  (function logMessagesTail() {
-    function isObject(value: unknown): value is Record<string, unknown> {
-      return typeof value === "object" && value !== null;
-    }
-    const tail = messages.slice(-3).map((m) => {
-      const kind = Array.isArray(m.content)
-        ? "array"
-        : typeof m.content === "string"
-          ? "string"
-          : typeof m.content;
-      const entry: Record<string, unknown> = {
-        role: m.role,
-        contentKind: kind,
-      };
-      if (Array.isArray(m.content)) {
-        const parts = (m.content as ReadonlyArray<unknown>).map((p) => {
-          const base: Record<string, unknown> = {
-            type:
-              isObject(p) && typeof p.type === "string" ? p.type : "unknown",
-          };
-          if (isObject(p) && p.type === "text" && typeof p.text === "string") {
-            base.textLen = p.text.length;
-          }
-          if (isObject(p) && p.type === "tool-call") {
-            base.toolCallId =
-              typeof p.toolCallId === "string" ? p.toolCallId : undefined;
-            base.toolName =
-              typeof p.toolName === "string" ? p.toolName : undefined;
-          }
-          if (isObject(p) && p.type === "tool-result") {
-            base.toolCallId =
-              typeof p.toolCallId === "string" ? p.toolCallId : undefined;
-            base.toolName =
-              typeof p.toolName === "string" ? p.toolName : undefined;
-            const output = (p as { output: unknown }).output;
-            base.outputType = typeof output;
-            if (isObject(output)) {
-              base.outputKeys = Object.keys(output).slice(0, 5);
-              const outType = (output as Record<string, unknown>).type;
-              if (typeof outType === "string") base.outputSubtype = outType;
-            }
-          }
-          return base;
-        });
-        entry.parts = parts;
-      }
-      return entry;
-    });
-    try {
-      console.log(
-        "[callLlmStep] messagesTail",
-        JSON.stringify({ total: messages.length, tail }, null, 2),
-      );
-    } catch {
-      // ignore logging failures
-    }
-  })();
-
-  const toolMap = await getAiSdkToolMap(args.allowedTools ?? []);
-  const result = await generateText({
-    model: model as unknown as LanguageModel,
-    messages,
-    allowSystemInMessages: true,
-    system,
-    ...(isReasoning ? {} : { temperature: config.temperature }),
-    maxOutputTokens: config.maxOutputTokens,
-    tools: toolMap,
-  });
-
-  console.log(
-    "[callLlmStep] result",
-    JSON.stringify({
-      ...result,
-      messageId,
-    }),
-  );
-
-  const text = result.text ?? "";
-  accumulatedText = text;
-
-  // Streaming is handled by the workflow after this step returns
-
-  // Extract tool calls from result
-  const toolCalls: ToolCallDescriptor[] =
-    result.toolCalls?.map((tc) => ({
-      toolCallId: tc.toolCallId,
-      toolName: tc.toolName,
-      input: (tc.input ?? {}) as Record<string, unknown>,
-    })) ?? [];
-
-  return {
-    text: accumulatedText,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-    messageId,
-  };
 }
-
-// todo: raise to 2 after happy path mostly works
-callLlmStep.maxRetries = 0;

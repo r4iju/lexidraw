@@ -69,6 +69,11 @@ targets:
       - App/FileNavigation.swift
       - App/MessageAlert.swift
       - App/DocumentView.swift
+      - App/DocumentSuggestions.swift
+      - App/Listener.swift
+      - App/DocumentImages.swift
+      - App/DocumentAgent.swift
+      - App/DeviceAgentView.swift
       - App/MediaCaptionEditor.swift
       - App/DocumentTypography.swift
       - App/Loaded.swift
@@ -209,6 +214,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-harness
+        INFOPLIST_FILE: BrowserHarness/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Browser Harness
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
@@ -221,6 +227,8 @@ targets:
       - BrowserUITests
     dependencies:
       - target: BrowserHarness
+      - package: LexidrawIOS
+        product: LexidrawKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-ui-tests

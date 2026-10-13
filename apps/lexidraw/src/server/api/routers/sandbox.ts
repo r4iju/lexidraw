@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import env from "@packages/env";
 import { sandboxAuthMiddleware } from "~/server/api/sandbox-auth";
 
 const sandboxOnly = publicProcedure.use(async ({ ctx, next }) => {
@@ -23,73 +22,23 @@ const GoogleSearchInput = z.object({
 });
 
 export const sandboxRouter = createTRPCRouter({
-  search: sandboxOnly.input(GoogleSearchInput).query(async ({ input }) => {
-    const apiKey = env.GOOGLE_API_KEY;
-    const cx = env.GOOGLE_SEARCH_ENGINE_ID;
-    if (!apiKey || !cx) {
+  search: sandboxOnly.input(GoogleSearchInput).query(
+    async (): Promise<{
+      results: {
+        title: string;
+        url: string;
+        snippet: string;
+        source?: string;
+      }[];
+      total?: number;
+    }> => {
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Missing Google search configuration",
+        code: "FORBIDDEN",
+        message:
+          "Paid search requires a server-authorized parent action budget. Direct and sandbox search are unavailable.",
       });
-    }
-    const q = input.site ? `site:${input.site} ${input.query}` : input.query;
-    const params = new URLSearchParams({
-      key: apiKey,
-      cx,
-      q,
-      num: String(Math.max(1, Math.min(10, input.num ?? 5))),
-      safe: input.safe ?? "off",
-      fields:
-        "items(title,link,snippet,htmlSnippet,displayLink),searchInformation(totalResults)",
-      prettyPrint: "false",
-    });
-    const url = `https://www.googleapis.com/customsearch/v1?${params.toString()}`;
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) {
-      let reason = "";
-      try {
-        const asJson = (await res.json()) as {
-          error?: { code?: number; status?: string; message?: string };
-        };
-        reason = asJson?.error?.message || asJson?.error?.status || "";
-      } catch {
-        const body = await res.text();
-        reason = body?.slice(0, 300);
-      }
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Google CSE error: ${res.status}${reason ? ` - ${reason}` : ""}`,
-      });
-    }
-    type GoogleCseItem = {
-      title?: string;
-      link?: string;
-      snippet?: string;
-      htmlSnippet?: string;
-      displayLink?: string;
-    };
-    type GoogleCseResponse = {
-      items?: GoogleCseItem[];
-      searchInformation?: { totalResults?: string };
-    };
-    const data = (await res.json()) as GoogleCseResponse;
-    const items: GoogleCseItem[] = Array.isArray(data.items) ? data.items : [];
-    return {
-      results: items.map((it: GoogleCseItem) => ({
-        title: String(it.title ?? ""),
-        url: String(it.link ?? ""),
-        snippet: String(it.snippet ?? it.htmlSnippet ?? ""),
-        source: it.displayLink ? String(it.displayLink) : undefined,
-      })),
-      total: data.searchInformation?.totalResults
-        ? Number(data.searchInformation.totalResults)
-        : undefined,
-    };
-  }),
+    },
+  ),
 
   fetchArticle: sandboxOnly
     .input(

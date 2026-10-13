@@ -1,0 +1,284 @@
+import { PRICEBOOK } from "./contracts";
+import { makeSupplierContract } from "./supplier-contract";
+import { expect, mock, test } from "bun:test";
+mock.module("server-only", () => ({}));
+mock.module("@packages/env", () => ({ default: {} }));
+const { createProProviderTransport } = await import("./provider");
+test("approved Pro adapter uses the tuned bounded provider request and measured cached/reasoning usage through injected HTTP only", async () => {
+  let dispatched = 0;
+  const transport = createProProviderTransport({
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
+    resolveServerKey: () => "fake-server-fixture-only",
+    fetch: async (url, options) => {
+      dispatched++;
+      expect(String(url)).toBe("https://api.openai.com/v1/responses");
+      expect(new Headers(options?.headers).get("X-Client-Request-Id")).toBe(
+        "attempt-fixture",
+      );
+      const body = JSON.parse(String(options?.body));
+      expect(body.model).toBe("gpt-5.4-mini");
+      expect(body.max_output_tokens).toBeLessThanOrEqual(512);
+      return Response.json({
+        id: "response-fixture",
+        object: "response",
+        created_at: 1000,
+        model: "gpt-5.4-mini",
+        status: "completed",
+        output: [
+          {
+            id: "message",
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [
+              {
+                type: "output_text",
+                text: "hello continuation",
+                annotations: [],
+              },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { cached_tokens: 4 },
+          output_tokens: 2,
+          output_tokens_details: { reasoning_tokens: 1 },
+          total_tokens: 12,
+        },
+      });
+    },
+  });
+  expect(
+    await transport("hello", new AbortController().signal, {
+      attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
+      accountId: "alice",
+      operationId: "operation-fixture",
+    }),
+  ).toEqual({
+    kind: "completed",
+    completion: {
+      text: " continuation",
+      usage: { input: 10, cachedInput: 4, output: 2 },
+      actualCostNanoUsd: 13800,
+      providerResponseId: "response-fixture",
+    },
+  });
+  expect(dispatched).toBe(1);
+});
+
+test("confirmed provider rejection is a technical failure with no generated result, while network uncertainty is never guessed free", async () => {
+  const refused = createProProviderTransport({
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
+    resolveServerKey: () => "fixture-only",
+    fetch: async () =>
+      Response.json(
+        {
+          error: {
+            message: "Rejected",
+            type: "invalid_request_error",
+            code: "invalid_api_key",
+          },
+        },
+        { status: 401 },
+      ),
+  });
+  expect(
+    await refused("text", new AbortController().signal, {
+      attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
+      accountId: "alice",
+      operationId: "operation-fixture",
+    }),
+  ).toEqual({
+    kind: "failed",
+    retryable: false,
+    actualCostNanoUsd: 0,
+  });
+  const uncertain = createProProviderTransport({
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
+    resolveServerKey: () => "fixture-only",
+    fetch: async () => {
+      throw Error("network interrupted");
+    },
+  });
+  expect(
+    await uncertain("text", new AbortController().signal, {
+      attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
+      accountId: "alice",
+      operationId: "operation-fixture",
+    }),
+  ).toEqual({
+    kind: "unknown",
+  });
+});
+
+test("trusted autocomplete dispatches only the pinned server provider with its shorter output ceiling", async () => {
+  let dispatched = 0;
+  const transport = createProProviderTransport({
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
+    resolveServerKey: () => "isolated-autocomplete-fixture-key",
+    fetch: async (url, options) => {
+      dispatched++;
+      expect(String(url)).toBe("https://api.openai.com/v1/responses");
+      const headers = new Headers(options?.headers);
+      expect(headers.get("authorization")).toBe(
+        "Bearer isolated-autocomplete-fixture-key",
+      );
+      expect(headers.get("X-Client-Request-Id")).toBe("autocomplete-attempt");
+      const body = JSON.parse(String(options?.body));
+      expect(body.model).toBe("gpt-5.4-mini");
+      expect(body.max_output_tokens).toBeLessThanOrEqual(64);
+      expect(JSON.stringify(body.input)).toContain("Title");
+      return Response.json({
+        id: "autocomplete-response",
+        object: "response",
+        created_at: 1000,
+        model: body.model,
+        status: "completed",
+        output: [
+          {
+            id: "message",
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [
+              { type: "output_text", text: "Hello world.", annotations: [] },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 100,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 4,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 104,
+        },
+      });
+    },
+  });
+  expect(
+    await transport(
+      JSON.stringify({ title: "Title", before: "Hello", after: "" }),
+      new AbortController().signal,
+      {
+        feature: "autocomplete",
+        accountId: "alice",
+        operationId: "autocomplete-operation",
+        attemptId: "autocomplete-attempt",
+        supplier: makeSupplierContract(
+          "autocomplete",
+          PRICEBOOK,
+          "test-injection",
+        ),
+      },
+    ),
+  ).toMatchObject({
+    kind: "completed",
+    completion: { text: " world.", actualCostNanoUsd: 93000 },
+  });
+  expect(dispatched).toBe(1);
+});
+
+test("text provider refuses forged dispatch before resolving any app-owned key", async () => {
+  let keys = 0;
+  const transport = createProProviderTransport({
+    authorize: async () => {
+      throw new Error("Parent authorization required");
+    },
+    resolveServerKey: () => {
+      keys++;
+      return "fixture-only";
+    },
+    fetch: async () => {
+      throw Error("No external calls");
+    },
+  });
+  await expect(
+    transport("hello", new AbortController().signal, {
+      accountId: "alice",
+      attemptId: "forged",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
+      operationId: "forged",
+    }),
+  ).rejects.toThrow("authorization");
+  expect(keys).toBe(0);
+});
+
+test("dispatch uses the durable authorization contract rather than a supplied model or rate book", async () => {
+  const transport = createProProviderTransport({
+    authorize: async () =>
+      makeSupplierContract("text", PRICEBOOK, "test-injection"),
+    resolveServerKey: () => "synthetic-key",
+    fetch: async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      expect(body.model).toBe("gpt-5.4-mini");
+      return Response.json({
+        id: "authorized",
+        object: "response",
+        created_at: 1000,
+        model: body.model,
+        status: "completed",
+        output: [
+          {
+            id: "message",
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [
+              { type: "output_text", text: "Hello world", annotations: [] },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 2,
+          total_tokens: 12,
+        },
+      });
+    },
+  });
+  const result = await transport("Hello", new AbortController().signal, {
+    accountId: "alice",
+    operationId: "op",
+    attemptId: "attempt",
+    supplier: makeSupplierContract(
+      "text",
+      {
+        ...PRICEBOOK,
+        version: "forged",
+        model: "unadmitted-model",
+        inputNanoUsd: 1500,
+        outputNanoUsd: 9000,
+      },
+      "test-injection",
+    ),
+  });
+  expect(result).toMatchObject({
+    kind: "completed",
+    completion: { actualCostNanoUsd: 16500 },
+  });
+});

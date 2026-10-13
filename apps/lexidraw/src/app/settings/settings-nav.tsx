@@ -1,6 +1,7 @@
 export const SETTINGS_SECTIONS = [
   { id: "settings-account", label: "Account" },
   { id: "settings-editor", label: "Editor" },
+  { id: "settings-ai-power", label: "AI power" },
   { id: "settings-ai", label: "AI" },
   { id: "settings-read-aloud", label: "Read aloud" },
   { id: "settings-sign-in", label: "Sign-in methods" },

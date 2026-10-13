@@ -1,0 +1,12 @@
+{
+  "version": "cached-modern-0036-v1",
+  "pinnedCommit": "9237e23770cfd9c7de97a6be4d512dda9b25ea40",
+  "scopedDDL": "/Users/emanuel/code/lexidraw/packages/drizzle/tests/fixtures/e4-modern-0014/schema.sql",
+  "gitBlob": "8d718020d4be5356f22a64943d344d40282c7d93",
+  "sha256": "c55ca522d3b994960ad4e2c6f64118b5f391c3b9b9b5b29777b06c1658d665af",
+  "selection": ["Users", "Entities", "SharedEntities", "Tags", "EntityTags"],
+  "physical": "Executed scoped literal cached DDL on disposable SQLite for complete metadata; no configured schema or database loader. Independent fixture, production module does not read fixture.",
+  "sourceUser": "Only existing finite synthetic one-column User contract. Actual historical production User remains unproved and STOP. Same ID data mapping only.",
+  "historicalDifference": "0005 adds parentId REFERENCES Entities(id) with NO ACTION actions and historical added-column order. This contract requires cached physical column order and CASCADE/CASCADE. Declaration/snapshot does not certify journal output.",
+  "tags": "Both Tags_name_unique and Tag_name_unique required; EntityTags complete triple and FK contract."
+}

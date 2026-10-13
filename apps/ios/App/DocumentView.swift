@@ -88,6 +88,22 @@ struct DocumentScreen: View {
     if status == .conflict { conflict = true }
   }
 
+  func saveImage(_ url: URL, prompt: String, in view: EditorView?) async throws -> DocumentSaveReceipt? {
+    guard mode == .editing, !conflict, let view else { return nil }
+    let count = DocumentSaveReceipt.imageCount(try model.serializedState()["root"], url: url)
+    guard count <= 1 else { return nil }
+    if count == 0 {
+      view.setEditingEnabled(true)
+      guard view.insertGeneratedImage(url, altText: prompt) else { return nil }
+    }
+    changed()
+    await sending?.value
+    let receipt = await saver.saveNow()
+    status = await saver.status
+    if status == .conflict { conflict = true }
+    return receipt
+  }
+
   func keepMineAsCopy() async {
     guard !copying else { return }
     copying = true
@@ -115,14 +131,28 @@ private final class DocumentEditorReference {
 private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
   @State private var editorReference = DocumentEditorReference()
+  @State private var suggestions = DocumentSuggestions()
   @State private var isEditing = false
   @State private var noticeHeight: CGFloat = 44
   let reload: () async -> Void
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.dismiss) private var dismiss
   @State private var leaving = false
+  @State private var imageComposer = false
+  @State private var agentComposer = false
+  @State private var chatComposer = false
   @Environment(\.fileNavigation) private var fileNavigation
 
+  private func chatContext() -> String {
+    func text(_ node: JSONValue) -> String {
+      let own = node["text"]?.stringValue ?? ""
+      return own + (node["children"]?.arrayValue ?? []).map(text).joined(separator: "\n")
+    }
+    guard let state = try? editing.model.serializedState(), let root = state["root"] else {
+      return ""
+    }
+    return text(root)
+  }
   var body: some View {
     GeometryReader { geometry in
       DocumentEditor(editing: editing, reference: editorReference, isEditing: isEditing)
@@ -168,8 +198,37 @@ private struct DocumentContent: View {
             .fontWeight(.semibold)
           }
         }
+        if editing.mode == .editing {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Generate image", systemImage: "photo.badge.plus") { imageComposer = true }
+          }
+        }
+        if editing.mode == .editing {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Document action", systemImage: "wand.and.stars") {
+              editorReference.view?.setEditingEnabled(false)
+              isEditing = false
+              Task { await editing.saveNow(); if editing.status == .saved && !editing.conflict { agentComposer = true } }
+            }
+          }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Chat", systemImage: "bubble.left") { chatComposer = true }
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
+        }
+      }
+      .sheet(isPresented: $agentComposer, onDismiss: { Task { await reload() } }) {
+        DocumentAgentComposer(session: editing.session, document: editing.id)
+      }
+      .sheet(isPresented: $chatComposer) {
+        DocumentChatComposer(session: editing.session, document: editing.id, context: chatContext())
+      }
+      .sheet(isPresented: $imageComposer) {
+        DocumentImageComposer(session: editing.session, document: editing.id) { url, prompt in
+          isEditing = true
+          return try await editing.saveImage(url, prompt: prompt, in: editorReference.view)
         }
       }
       .onAppear {
@@ -181,19 +240,41 @@ private struct DocumentContent: View {
         }
       }
       .task { await editing.followSaving() }
+      .task { await suggestions.load(session: editing.session, editor: editorReference.view, title: editing.title, language: editing.settings.language ?? Locale.autoupdatingCurrent.identifier) }
       .onDisappear {
+        suggestions.stop()
         fileNavigation?.unregister(editing)
         editorReference.view?.setEditingEnabled(false)
         isEditing = false
         Task { await editing.saveNow() }
       }
       .onChange(of: scenePhase) { _, phase in
-        if phase != .active { Task { await editing.saveNow() } }
+        if phase != .active { suggestions.stop(); Task { await editing.saveNow() } }
+        else { Task { await suggestions.load(session: editing.session, editor: editorReference.view, title: editing.title, language: editing.settings.language ?? Locale.autoupdatingCurrent.identifier) } }
       }
   }
 
   private var notice: some View {
     VStack(alignment: .leading, spacing: 10) {
+      if isEditing {
+        Toggle(
+          "Writing suggestions",
+          isOn: Binding(
+            get: { suggestions.enabled },
+            set: { value in Task { await suggestions.setEnabled(value) } })
+        )
+        .accessibilityIdentifier("writing-suggestions-opt-in")
+        Text(suggestions.message).font(.caption).accessibilityIdentifier(
+          "writing-suggestions-status")
+        if let allowance = suggestions.allowance {
+          Text(
+            "\(String(format: "%.3f", Double(allowance.availableSubcredits) / 1_000_000)) credits available · \(String(format: "%.3f", Double(allowance.reservedSubcredits) / 1_000_000)) reserved"
+          ).font(.caption)
+          Text(
+            "\(String(format: "%.3f", Double(allowance.history.filter { $0.feature == "autocomplete" }.reduce(Int64(0)) { $0 + $1.charged }) / 1_000_000)) suggestion credits in recent usage"
+          ).font(.caption)
+        }
+      }
       if !isEditing {
         Text(editing.title)
           .font(.title2.weight(.semibold))
@@ -339,7 +420,12 @@ private struct DocumentEditor: UIViewRepresentable {
 
 @MainActor func nativeMediaImageLoader(session: Session) -> MediaImageLoader {
   { source in
-    try await NativeMediaImages.load(source, rasterizeSVG: { svg in
+    if source.path.hasPrefix("/api/generated-images/") {
+      let bytes = try await session.savedGeneratedImage(source)
+      guard let image = UIImage(data: bytes) else { throw URLError(.cannotDecodeContentData) }
+      return image
+    }
+    return try await NativeMediaImages.load(source, rasterizeSVG: { svg in
       let preview = try await session.rasterizeSVG(svg)
       guard let image = UIImage(data: preview.png), let bitmap = image.cgImage else { throw URLError(.cannotDecodeContentData) }
       let scale = Double(max(bitmap.width, bitmap.height)) / max(preview.width, preview.height)

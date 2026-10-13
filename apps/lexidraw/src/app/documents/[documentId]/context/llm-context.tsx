@@ -1,10 +1,34 @@
 "use client";
 
-import { createContext, useCallback, useState, useContext } from "react";
+import { createContext, useContext, useState, useRef, useEffect } from "react";
 import type { PropsWithChildren } from "react";
+import { useSession } from "next-auth/react";
+import { OwnedChatRecovery } from "~/lib/generation/chat-recovery";
+import { api } from "~/trpc/react";
+import {
+  useBrowserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "~/lib/byok/browser-session";
+import {
+  ChatInput,
+  CHAT_CAPABILITY,
+  CHAT_STOP,
+  ChatDeclined,
+  prepareChat,
+  runChat,
+} from "~/lib/generation/chat";
+import {
+  proChatPort,
+  OwnedChatSubmission,
+  chatBrowserFetch,
+  type ChatQuote,
+} from "~/lib/generation/chat-client";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
+import type { ChatRuntime } from "~/lib/generation/chat-runtime";
 
 import type {
-  generateText,
   LanguageModel,
   StepResult,
   tool,
@@ -12,14 +36,11 @@ import type {
   ToolChoice,
   ModelMessage,
 } from "ai";
-import { api } from "~/trpc/react";
 import type {
   LlmBaseConfigSchema,
   StoredLlmConfig,
-  PartialLlmConfig,
 } from "~/server/api/routers/config";
 import type { z } from "zod";
-import { useDebounce } from "~/lib/client-utils";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
@@ -73,7 +94,9 @@ export type AutocompleteLLMState = {
 };
 
 export type LLMOptions = {
+  selectedInput?: ChatInput;
   prompt: string;
+  context?: string;
   messages?: ModelMessage[];
   system?: string;
   temperature?: number;
@@ -124,404 +147,350 @@ type LLMContextValue = {
     },
   ) => Promise<void>;
   chatState: ChatLLMState;
+  chatSource: string;
+  chatCapability: string | null;
+  chatQuote: ChatQuote | null;
+  acceptChatQuote: (accepted: boolean) => void;
+  cancelChat: () => void;
 };
-
-/**
- * The agent's model, reached through the app's proxy. The SDKs load with the
- * first request, not with every document.
- */
-async function proxiedModel(
-  provider: string,
-  modelId: string,
-): Promise<LanguageModel> {
-  const options = { baseURL: `/api/llm/proxy/${provider}`, apiKey: "proxy" };
-  if (provider === "openai") {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    return createOpenAI(options)(modelId);
-  }
-  if (provider === "google") {
-    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-    return createGoogleGenerativeAI(options)(modelId);
-  }
-  throw new Error("Unsupported provider for client orchestration");
-}
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
 type LLMProviderProps = PropsWithChildren<{
   initialConfig: StoredLlmConfig;
+  documentId?: string;
+  chatRuntime?: ChatRuntime;
 }>;
 
-export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
-  const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
-    onSuccess: async (updatedConfig) => {
-      setLlmConfig((prev) => ({
-        chat: updatedConfig.chat
-          ? { ...prev.chat, ...updatedConfig.chat }
-          : prev.chat,
-        autocomplete: updatedConfig.autocomplete
-          ? { ...prev.autocomplete, ...updatedConfig.autocomplete }
-          : prev.autocomplete,
-        agent: updatedConfig.agent
-          ? { ...prev.agent, ...updatedConfig.agent }
-          : prev.agent,
-      }));
-    },
-    onError: (error) => {
-      console.error("Failed to update LLM config:", error);
-    },
+type Turn =
+  | { status: "idle" }
+  | { status: "running"; text: string }
+  | { status: "review"; text: string; quote: ChatQuote }
+  | { status: "complete"; text: string }
+  | { status: "error"; text: string; message: string };
+export function LLMProvider(props: LLMProviderProps) {
+  return (
+    <>
+      {props.documentId && <OwnedChatRecovery documentId={props.documentId} />}
+      {props.chatRuntime ? (
+        <RuntimeProvider {...props} runtime={props.chatRuntime} />
+      ) : (
+        <SelectedRuntimeProvider {...props} key={props.documentId} />
+      )}
+    </>
+  );
+}
+function SelectedRuntimeProvider(props: LLMProviderProps) {
+  const account = useSession();
+  return (
+    <AccountRuntimeProvider
+      {...props}
+      key={JSON.stringify([account.data?.user.id, props.documentId])}
+      authenticated={account.status === "authenticated"}
+    />
+  );
+}
+function AccountRuntimeProvider(
+  props: LLMProviderProps & { authenticated: boolean },
+) {
+  const identity = useSession();
+  const accountId =
+    identity.status === "authenticated" ? identity.data.user.id : undefined;
+  const session = useBrowserByok(accountId);
+  const generation = browserByokSessionGeneration();
+  const submission = useRef(new OwnedChatSubmission());
+  const power = api.auth.getPowerPreference.useQuery(undefined, {
+    enabled: props.authenticated,
   });
-
-  const [llmConfig, setLlmConfig] = useState<LLMConfig>({
-    chat: initialConfig.chat,
-    autocomplete: initialConfig.autocomplete,
-    agent:
-      (initialConfig as Partial<StoredLlmConfig>).agent ?? initialConfig.chat,
+  const preference = queryAccess(
+    power,
+    props.authenticated,
+    "AI power preference",
+  );
+  const capabilityEnabled =
+    props.authenticated &&
+    preference.kind === "ready" &&
+    preference.data.mode === "pro";
+  const capability = api.pro.chatCapability.useQuery(undefined, {
+    enabled: capabilityEnabled,
   });
-
-  const saveConfiguration = useCallback(
-    (updatedConfig: {
-      chatConfig?: Partial<LLMBaseState>;
-      autocompleteConfig?: Partial<LLMBaseState>;
-      agentConfig?: Partial<LLMBaseState>;
-    }) => {
-      const payload: PartialLlmConfig = {};
-
-      if (updatedConfig.chatConfig) {
-        payload.chat = {
-          modelId: llmConfig.chat.modelId,
-          provider: llmConfig.chat.provider,
-          temperature: llmConfig.chat.temperature,
-        };
-      }
-
-      if (updatedConfig.autocompleteConfig) {
-        payload.autocomplete = {
-          modelId: llmConfig.autocomplete.modelId,
-          provider: llmConfig.autocomplete.provider,
-          temperature: llmConfig.autocomplete.temperature,
-        };
-      }
-
-      if (updatedConfig.agentConfig) {
-        payload.agent = {
-          modelId: llmConfig.agent.modelId,
-          provider: llmConfig.agent.provider,
-          temperature: llmConfig.agent.temperature,
-        } as Partial<LLMBaseState>;
-      }
-
-      if (Object.keys(payload).length > 0) {
-        console.log("[LLMContext] Saving LLM configuration update:", payload);
-        updateLlmConfigMutation.mutate(payload);
-      }
-    },
-    [updateLlmConfigMutation, llmConfig],
+  const utils = api.useUtils();
+  const access = queryAccess(
+    capability,
+    capabilityEnabled,
+    "Pro chat capability",
   );
-
-  const debouncedSaveConfiguration = useDebounce(
-    ((updatedConfig: {
-      chatConfig?: Partial<LLMBaseState>;
-      autocompleteConfig?: Partial<LLMBaseState>;
-    }) => saveConfiguration(updatedConfig)) as (...args: unknown[]) => void,
-    2000,
-  );
-
-  const updateLlmConfig = useCallback(
-    (
-      config: Partial<{
-        chat: Partial<LLMBaseState>;
-        autocomplete: Partial<LLMBaseState>;
-        agent: Partial<LLMBaseState>;
-      }>,
-      _options?: { mode?: "chat" | "autocomplete" | "agent" },
-    ) => {
-      setLlmConfig((prev) => {
-        // Start with the previous state
-        const nextState = { ...prev };
-
-        // Apply chat updates if provided
-        if (config.chat) {
-          nextState.chat = { ...prev.chat, ...config.chat };
-        }
-
-        // Apply autocomplete updates if provided
-        if (config.autocomplete) {
-          nextState.autocomplete = {
-            ...prev.autocomplete,
-            ...config.autocomplete,
-          };
-        }
-
-        // Apply agent updates if provided
-        if (config.agent) {
-          nextState.agent = {
-            ...prev.agent,
-            ...config.agent,
-          };
-        }
-
-        // Token caps now enforced on the server; no client-side capping
-
-        return nextState;
-      });
-
-      debouncedSaveConfiguration.run({
-        chatConfig: config.chat,
-        autocompleteConfig: config.autocomplete,
-        agentConfig: config.agent,
-      });
-    },
-    [debouncedSaveConfiguration],
-  );
-
-  const [autocompleteState] = useState<AutocompleteLLMState>({
-    isError: false,
-    text: "",
-    error: null,
-    isLoading: false,
-  } satisfies AutocompleteLLMState);
-
-  const [chatState, setChatState] = useState<ChatLLMState>({
-    isError: false,
-    text: "",
-    error: null,
-    isStreaming: false,
-    toolCalls: [],
-    toolResults: [],
-  } satisfies ChatLLMState);
-
-  // Removed client provider instances; server proxies are authoritative
-
-  const generateChatResponse = useCallback(
-    async ({
-      prompt = "",
-      messages,
-      system = "",
-      temperature,
-      tools,
-      prepareStep: _prepareStep,
-      repairToolCall: _repairToolCall,
-      toolChoice: _toolChoice,
-      maxSteps,
-      files: _files,
-      mode,
-    }: LLMOptions & {
-      mode?: "chat" | "agent";
-      files?: File[] | FileList | null;
-      repairToolCall?: ToolCallRepairFunction<RuntimeToolMap>;
-      prepareStep?: (options: {
-        steps: StepResult<RuntimeToolMap>[];
-        stepNumber: number;
-        model: LanguageModel;
-        messages: ModelMessage[];
-      }) => Promise<{
-        model?: LanguageModel;
-        toolChoice?: ToolChoice<RuntimeToolMap>;
-        activeTools?: Array<keyof RuntimeToolMap>;
-        system?: string;
-        messages?: ModelMessage[];
-      }>;
-    }): Promise<GenerateChatResponseResult> => {
-      const useAgent = mode === "agent";
-      const activeConfig = useAgent ? llmConfig.agent : llmConfig.chat;
-
-      setChatState((prev) => ({
-        ...prev,
-        isStreaming: true,
-        isError: false,
-        error: null,
-        text: "",
-        toolCalls: undefined,
-      }));
-
-      const model = await proxiedModel(
-        llmConfig.agent.provider,
-        llmConfig.agent.modelId,
-      );
-
-      const baseMessages: ModelMessage[] = (messages ?? []).length
-        ? (messages as ModelMessage[])
-        : ([{ role: "user", content: prompt }] as ModelMessage[]);
-
-      const genOptions = {
-        model,
-        messages: baseMessages,
-        allowSystemInMessages: true,
-        system,
-        temperature: temperature ?? activeConfig.temperature,
-        tools: tools as unknown as RuntimeToolMap,
-        toolChoice: "auto",
-        maxSteps,
-      } as unknown as Parameters<typeof generateText>[0];
-      console.log("[agent] generateText (client) → sending", {
-        toolCount: Object.keys(tools ?? {}).length,
-        toolNames: Object.keys(tools ?? {}),
-        maxSteps,
-      });
-      const { generateText } = await import("ai");
-      const result = await generateText(genOptions);
-      console.log("[agent] generateText (client) ← result", {
-        toolCallsCount: (result.toolCalls ?? []).length,
-        toolCalls: (result.toolCalls ?? []).map((c) => ({
-          id: c.toolCallId,
-          name: c.toolName,
-        })),
-        textLength: (result?.text ?? "").length,
-      });
-
-      const text = (result?.text ?? "").toString();
-      const toolCalls = (result.toolCalls ?? []).map((c) => {
-        const rawInput = c.input;
-        return {
-          toolCallId: c.toolCallId,
-          toolName: c.toolName,
-          input: rawInput ?? {},
-        } as AppToolCall;
-      });
-      setChatState((prev) => ({
-        ...prev,
-        isError: false,
-        text,
-        error: null,
-        isStreaming: false,
-      }));
-      return { text, toolCalls, toolResults: undefined };
-
-      // Agent or tools present → call server agent route (fallback)
-    },
-    [llmConfig.chat, llmConfig.agent],
-  );
-
-  const generateChatStream = useCallback(
-    async ({
-      prompt,
-      system = "",
-      temperature,
-      signal,
-      callbacks,
-      files,
-    }: Omit<LLMOptions, "tools" | "toolChoice" | "maxSteps"> & {
-      callbacks: StreamCallbacks;
-      files?: File[] | FileList | null;
-    }): Promise<void> => {
-      setChatState((prev) => ({
-        ...prev,
-        isStreaming: true,
-        isError: false,
-        error: null,
-        text: "",
-        toolCalls: undefined,
-      }));
-
-      let accumulatedText = "";
-      let finished = false;
-
-      try {
-        // Build request body
-        const hasFiles = files && files.length > 0;
-        let resp: Response;
-        if (hasFiles) {
-          const form = new FormData();
-          form.set("prompt", prompt ?? "");
-          form.set("system", system ?? "");
-          form.set(
-            "temperature",
-            String(temperature ?? llmConfig.chat.temperature),
+  const source = preference.kind === "ready" ? preference.data.mode : "unknown";
+  const reason =
+    preference.kind !== "ready"
+      ? preference.kind === "disabled"
+        ? identity.status === "loading"
+          ? "Checking your account before loading AI Power."
+          : "Sign in to use AI Power."
+        : preference.message
+      : access.kind === "error" || access.kind === "loading"
+        ? access.message
+        : source === "local"
+          ? "Built-in local chat is available only on supported Apple devices. No cloud fallback is used."
+          : source === "byok"
+            ? "Direct chat is unavailable until provider streaming and bounds are verified. Your saved history is preserved."
+            : access.kind === "ready"
+              ? access.data.reason
+              : "Pro chat capability is disabled.";
+  const runtime: ChatRuntime = {
+    source,
+    available:
+      source === "pro" &&
+      access.kind === "ready" &&
+      access.data.available === true,
+    reason,
+    async run(input, signal, onText, confirm) {
+      if (
+        preference.kind !== "ready" ||
+        (source === "pro" &&
+          (access.kind !== "ready" || !access.data.available))
+      )
+        throw new Error(reason);
+      if (
+        !session ||
+        !accountId ||
+        browserByokAccount() !== accountId ||
+        browserByokSessionGeneration() !== generation
+      )
+        throw new Error("Device account session is not ready.");
+      if (source === "local") throw new Error(reason);
+      if (source === "byok") {
+        const reference = session?.reference();
+        if (!session || !reference)
+          throw new Error(
+            "Set up your OpenRouter key in AI Power on this device.",
           );
-          for (const f of Array.from(files as FileList | File[])) {
-            form.append("files", f as File);
-          }
-          resp = await fetch("/api/llm/stream", {
-            method: "POST",
-            body: form,
-            signal,
-          });
-        } else {
-          resp = await fetch("/api/llm/stream", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt,
-              system,
-              temperature: temperature ?? llmConfig.chat.temperature,
-            }),
-            signal,
-          });
-        }
-
-        if (!resp.ok || !resp.body) {
-          const errText = await resp.text().catch(() => "Stream error");
-          throw new Error(errText || "Stream error");
-        }
-
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split(/\r?\n/);
-          for (const line of lines) {
-            if (!line) continue;
-            if (line.startsWith("data: ")) {
-              const textDelta = line.slice(6);
-              accumulatedText += textDelta;
-              callbacks.onTextUpdate?.(accumulatedText);
-            } else if (line.startsWith("event: finish")) {
-              finished = true;
-            }
-          }
-        }
-
-        setChatState((prev) => ({
-          ...prev,
-          isError: false,
-          text: accumulatedText,
-          error: null,
-          isStreaming: false,
-        }));
-
-        callbacks.onFinish?.({ text: accumulatedText });
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === "AbortError") {
-          console.log("[LLMContext] Stream aborted.");
-        } else {
-          const error = err instanceof Error ? err : new Error(String(err));
-          console.error("[LLMContext] Error during chat stream:", error);
-          setChatState((prev) => ({
-            ...prev,
-            isError: true,
-            error: error.message,
-          }));
-          callbacks.onError?.(error);
-        }
+        return runChat(input, session.chat(reference), {
+          signal,
+          onText,
+          assertSafe: session.assertSafe,
+        });
+      }
+      try {
+        if (!props.documentId)
+          throw new Error("Document chat context unavailable.");
+        const owned = await utils.client.pro.chatCurrent.query({
+          documentId: props.documentId,
+        });
+        if (
+          owned.some((operation) =>
+            ["reserved", "running", "unknown"].includes(operation.state),
+          )
+        )
+          throw new Error(
+            "Read or cancel the owned chat before starting another turn.",
+          );
+        return await runChat(
+          input,
+          proChatPort(input, {
+            quote: (input) => utils.client.pro.chatQuote.mutate(input),
+            confirm,
+            accept: (input) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatAccept.mutate({
+                ...input,
+                documentId: props.documentId,
+              });
+            },
+            recover: (input) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatRecovery.query({
+                ...input,
+                documentId: props.documentId,
+              });
+            },
+            cancel: (id) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatCancel.mutate({
+                id,
+                documentId: props.documentId,
+              });
+            },
+            fetch: (request) => chatBrowserFetch(session, request),
+            origin: window.location.origin,
+            idempotencyKey: crypto.randomUUID(),
+            submission: submission.current,
+          }),
+          { signal, onText, assertSafe: session?.assertSafe },
+        );
       } finally {
-        setChatState((prev) => ({
-          ...prev,
-          isStreaming: false,
-          text: accumulatedText,
-          toolCalls: undefined,
-          toolResults: undefined,
-        }));
-        if (!finished) {
-          callbacks.onFinish?.({ text: accumulatedText });
-        }
+        await Promise.all([
+          utils.pro.status.invalidate(),
+          utils.pro.chatCurrent.invalidate(),
+          utils.pro.chatUnscoped.invalidate(),
+        ]);
       }
     },
-    [llmConfig.chat.temperature],
+  };
+  return (
+    <RuntimeProvider {...props} runtime={runtime}>
+      <QueryNotice access={preference} retry={() => void power.refetch()} />
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
+      {props.children}
+    </RuntimeProvider>
   );
+}
+function RuntimeProvider({
+  children,
+  initialConfig,
+  runtime,
+}: LLMProviderProps & { runtime: ChatRuntime }) {
+  const [turn, setTurn] = useState<Turn>({ status: "idle" });
+  const active = useRef<AbortController | null>(null);
+  const pending = useRef<((accepted: boolean) => void) | null>(null);
+  // The in-flight request is an external system tied to the mounted surface. Leaving detaches it; only cancelChat cancels the paid operation.
+  useEffect(
+    () => () => {
+      active.current?.abort();
+      pending.current?.(false);
+    },
+    [],
+  );
+  function acceptChatQuote(accepted: boolean) {
+    const resolve = pending.current;
+    if (!resolve) return;
+    pending.current = null;
+    if (accepted) setTurn({ status: "running", text: "" });
+    resolve(accepted);
+  }
+  function cancelChat() {
+    active.current?.abort(CHAT_STOP);
+  }
+  async function generate(
+    options: LLMOptions,
+    onText?: (text: string) => void,
+  ) {
+    if (active.current) throw new Error("A chat turn is already running.");
+    if (!runtime.available)
+      throw new Error(
+        runtime.reason ?? "Chat unavailable for the selected AI Power source.",
+      );
+    if (options.tools || options.toolChoice || options.system)
+      throw new Error(CHAT_CAPABILITY);
+    const files = Array.from(options.files ?? []);
+    if (
+      files.length > 2 ||
+      files.some(
+        (file) =>
+          !["text/plain", "text/markdown"].includes(file.type) ||
+          file.size > 1500,
+      )
+    )
+      throw new Error(CHAT_CAPABILITY);
+    const controller = new AbortController();
+    active.current = controller;
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
+    setTurn({ status: "running", text: "" });
+    const abort = () => {
+      pending.current?.(false);
+      pending.current = null;
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    try {
+      const input = ChatInput.safeParse(
+        options.selectedInput ?? {
+          prompt: options.prompt,
+          context: options.context ?? "",
+          messages: options.messages ?? [],
+          files: await Promise.all(
+            files.map(async (file) => ({
+              name: file.name,
+              type: file.type,
+              text: await file.text(),
+            })),
+          ),
+        },
+      );
+      if (!input.success) throw new Error(CHAT_CAPABILITY);
+      prepareChat(input.data);
 
+      const text = await runtime.run(
+        input.data,
+        signal,
+        (text) => {
+          setTurn({ status: "running", text });
+          onText?.(text);
+        },
+        async (value) =>
+          new Promise<boolean>((resolve) => {
+            if (signal.aborted) {
+              resolve(false);
+              return;
+            }
+            pending.current = resolve;
+            setTurn({ status: "review", text: "", quote: value });
+          }),
+      );
+      setTurn({ status: "complete", text });
+      return { text };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Chat could not complete.";
+      setTurn(
+        error instanceof ChatDeclined
+          ? { status: "idle" }
+          : { status: "error", text: "", message },
+      );
+      throw new Error(message);
+    } finally {
+      signal.removeEventListener("abort", abort);
+      active.current = null;
+    }
+  }
+  const chatState: ChatLLMState = {
+    isError: turn.status === "error",
+    text: "text" in turn ? turn.text : "",
+    error: turn.status === "error" ? turn.message : null,
+    isStreaming: turn.status === "running" || turn.status === "review",
+  };
   return (
     <LLMContext.Provider
       value={{
-        llmConfig,
-        updateLlmConfig,
-        autocompleteState,
-        generateChatResponse,
-        generateChatStream,
+        llmConfig: initialConfig,
+        updateLlmConfig: () => {
+          throw new Error(
+            "Use AI Power. Legacy model settings are unavailable.",
+          );
+        },
+        autocompleteState: {
+          isError: false,
+          text: "",
+          error: null,
+          isLoading: false,
+        },
         chatState,
+        chatSource: runtime.source,
+        chatCapability: runtime.available
+          ? null
+          : (runtime.reason ?? "Chat unavailable"),
+        chatQuote: turn.status === "review" ? turn.quote : null,
+        acceptChatQuote,
+        cancelChat,
+        generateChatResponse: generate,
+        generateChatStream: async ({ callbacks, ...options }) => {
+          try {
+            const result = await generate(options, callbacks.onTextUpdate);
+            callbacks.onFinish?.(result);
+          } catch (error) {
+            callbacks.onError?.(
+              new Error(
+                error instanceof Error
+                  ? error.message
+                  : "Chat could not complete.",
+              ),
+            );
+          }
+        },
       }}
     >
       {children}

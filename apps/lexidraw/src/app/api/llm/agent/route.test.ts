@@ -16,6 +16,7 @@ const realAuth = await import("~/server/auth");
 mock.module("~/server/auth", () => ({ ...realAuth, auth: () => session }));
 
 const { POST } = await import("./route");
+const invoke: (request: NextRequest) => Promise<Response> = POST;
 
 const OWNER = "agent_owner";
 const STRANGER = "agent_stranger";
@@ -37,7 +38,7 @@ beforeAll(async () => {
 });
 
 function ask(documentId: string) {
-  return POST(
+  return invoke(
     new Request("http://lexidraw.test/api/llm/agent", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -51,7 +52,7 @@ test("a visitor with no account is told to sign in", async () => {
   expect((await ask(PRIVATE_DOC)).status).toBe(401);
 });
 
-test("a document the caller cannot read is not found", async () => {
+test("the retired route gives no document-existence response to a signed-in caller", async () => {
   session = { user: { id: STRANGER } };
-  expect((await ask(PRIVATE_DOC)).status).toBe(404);
+  expect((await ask(PRIVATE_DOC)).status).toBe(410);
 });

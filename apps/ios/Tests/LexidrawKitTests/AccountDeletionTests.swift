@@ -44,7 +44,9 @@ import Testing
     let server = FakeServer { _ in (200, #"{"id":"u1"}"#) }
     let session = try TestServer.session(server, store: UndeletableTokenStore())
 
-    try await session.deleteAccount(confirmation: "me@example.test")
+    await #expect(throws: NativeCleanupFailure.self) {
+      try await session.deleteAccount(confirmation: "me@example.test")
+    }
   }
 
   @Test func aConfirmationTheServerRefusesKeepsTheAppSignedIn() async throws {

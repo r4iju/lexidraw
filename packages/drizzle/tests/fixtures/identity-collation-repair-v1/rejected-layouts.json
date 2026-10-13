@@ -1,0 +1,56 @@
+[
+  {
+    "name": "User NOCASE declared parent with separate BINARY key",
+    "parent": "User",
+    "mismatchedCollation": true,
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT COLLATE NOCASE NOT NULL); CREATE UNIQUE INDEX User_binary ON User(id COLLATE BINARY); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User RTRIM declared parent with separate BINARY key",
+    "parent": "User",
+    "mismatchedCollation": true,
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT COLLATE RTRIM NOT NULL); CREATE UNIQUE INDEX User_binary ON User(id COLLATE BINARY); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users NOCASE declared parent with separate BINARY key",
+    "parent": "Users",
+    "mismatchedCollation": true,
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT COLLATE NOCASE NOT NULL); CREATE UNIQUE INDEX Users_binary ON Users(id COLLATE BINARY); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users RTRIM declared parent with separate BINARY key",
+    "parent": "Users",
+    "mismatchedCollation": true,
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT COLLATE RTRIM NOT NULL); CREATE UNIQUE INDEX Users_binary ON Users(id COLLATE BINARY); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User CHECK outside standalone parent contract",
+    "parent": "User",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT PRIMARY KEY NOT NULL CHECK(length(id)>0)); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users CHECK outside standalone parent contract",
+    "parent": "Users",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT PRIMARY KEY NOT NULL CHECK(length(id)>0)); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User STRICT outside standalone parent contract",
+    "parent": "User",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT PRIMARY KEY NOT NULL) STRICT; INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users STRICT outside standalone parent contract",
+    "parent": "Users",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT PRIMARY KEY NOT NULL) STRICT; INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User conflict constraint outside standalone parent contract",
+    "parent": "User",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT NOT NULL UNIQUE ON CONFLICT IGNORE); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users conflict constraint outside standalone parent contract",
+    "parent": "Users",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT NOT NULL UNIQUE ON CONFLICT IGNORE); INSERT INTO Users VALUES ('owner'),('reader')"
+  }
+]

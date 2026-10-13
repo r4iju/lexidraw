@@ -1,17 +1,26 @@
 import Foundation
+import OpenAPIRuntime
 
 /// What a signed-in app can do. Only an ``Account`` makes one, from a token it
 /// holds.
 public struct Session: Sendable {
+  /// A view lifetime belongs to this sign-in, even if another account opens the same document.
+  public var scopeID: ObjectIdentifier { ObjectIdentifier(aiHandle) }
   /// Where the web is, for addresses that open a file in it.
   let origin: URL
   let connection: Connection
   let store: any TokenStore
+  let revokeToken: @Sendable () async throws -> Void
+  let savedImageTransport: any ClientTransport
+  let aiHandle: NativeAIHandle
+  let providerKeyStore: (@Sendable (String) -> any TokenStore)?
+  let providerConfiguration: @Sendable () -> URLSessionConfiguration
 
   /// Asks the server through the generated client; an answer that isn't a
   /// success comes back as the ``Refusal`` it is.
   func ask<T>(_ call: (Client) async throws -> T) async throws -> T {
-    try await unwrapped { try await call(connection.client) }
+    try await aiHandle.requireActive()
+    return try await unwrapped { try await call(connection.client) }
   }
 
   /// The address the web opens `entry` at, for sending to someone.
@@ -105,9 +114,14 @@ public struct Session: Sendable {
   /// Revokes the token on the server, then forgets it here whatever the
   /// server said, so a failed request never leaves the app signed in.
   public func signOut() async throws -> SignOut {
+    NativeAppTokenResidue.shared.mark(store)
+    var failures = Set<NativeCleanupFailure.Step>()
+    do { try await aiHandle.endSession() }
+    catch let failure as NativeCleanupFailure { failures.formUnion(failure.steps) }
+    catch { failures.insert(.sessionActions) }
     let outcome: SignOut
     do {
-      _ = try await ask { try await $0.tokensRevokeCurrent(body: .json(.init())) }.ok
+      try await revokeToken()
       outcome = .revoked
     } catch let refusal as Refusal where [401, 404].contains(refusal.status) {
       // A token the server no longer takes, or no longer has, is revoked already.
@@ -115,7 +129,14 @@ public struct Session: Sendable {
     } catch {
       outcome = .stillValidOnServer
     }
-    try store.delete()
+    do {
+      try store.delete()
+      NativeAppTokenResidue.shared.clear(store)
+    } catch { failures.insert(.appToken) }
+    if !failures.isEmpty {
+      throw NativeCleanupFailure(steps: failures, signedOut: true,
+        revocationUnconfirmed: outcome == .stillValidOnServer)
+    }
     return outcome
   }
 }

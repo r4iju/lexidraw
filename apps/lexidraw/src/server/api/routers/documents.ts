@@ -1,3 +1,9 @@
+import { InvalidDocumentPayloadError } from "~/lib/document-payload";
+import {
+  readDocumentMergeBase,
+  documentMergeBasePredicate,
+  mergedDocumentElements,
+} from "~/server/documents/document-store";
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import {
   revalidateEntities,
@@ -6,7 +12,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
-import { eq, schema } from "@packages/drizzle";
+import { and, eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { ownTagNames } from "~/server/entities/tags";
@@ -557,6 +563,7 @@ export const documentRouter = createTRPCRouter({
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+      true,
       );
       if (entity?.entityType !== "document") {
         throw new TRPCError({
@@ -564,15 +571,22 @@ export const documentRouter = createTRPCRouter({
           message: "Document not found",
         });
       }
+      const documentBase = await readDocumentMergeBase(ctx.drizzle, input.id);
+      if (!documentBase) throw new InvalidDocumentPayloadError();
       const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
           // Strictly increasing, so a compare-and-set caller can tell this
           // save apart from its own; see nextUpdatedAt.
           updatedAt: nextUpdatedAt(),
-          elements: input.elements,
+          elements: mergedDocumentElements(documentBase, input.elements),
         })
-        .where(eq(schema.entities.id, input.id))
+        .where(
+          and(
+            eq(schema.entities.id, input.id),
+            documentMergeBasePredicate(documentBase),
+          ),
+        )
         .returning();
       for (const row of saved) await queueThumbnail(ctx.drizzle, row);
       revalidateEntities(input.id, entity.parentId);

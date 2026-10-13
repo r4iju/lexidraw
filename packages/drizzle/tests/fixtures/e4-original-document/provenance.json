@@ -1,0 +1,23 @@
+{
+  "kind": "STATIC_CACHED_ORIGINAL_DDL_AND_INDEPENDENT_SYNTHETIC_LITERALS",
+  "sourcePin": "cb715c8a21156d74648c90fb32866b88fbb3dcf2",
+  "gitBlob": "f741ca2490e7555f522fc4ea63fa1bffaf8af113",
+  "sourcePath": "packages/drizzle/drizzle/0001_tired_hannibal_king.sql",
+  "excerpt": "/Users/emanuel/.ai/working/lexidraw-276-recovery/plans/document-original-ddl-v1.json",
+  "ranges": [
+    [
+      38,
+      61
+    ],
+    [
+      82,
+      100
+    ],
+    [
+      141,
+      149
+    ]
+  ],
+  "adjustments": "Only Document/Drawing/SharedDocument/SharedDrawing indexes included; Session index excluded. Minimal synthetic User(id) parent, not a complete historical schema.",
+  "rows": "Independent literal synthetic values from preservation plan; SharedDrawing tuple independently specified. Opaque audio/unknown bytes assert retention, not editor validity. No original0001 journal invented."
+}

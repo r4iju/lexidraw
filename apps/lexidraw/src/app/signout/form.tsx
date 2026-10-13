@@ -1,5 +1,6 @@
 "use client";
 
+import { clearBrowserByok } from "~/lib/byok/browser-session";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
@@ -8,6 +9,7 @@ import { Button } from "~/components/ui/button";
 export default function SignOutForm() {
   const [pending, setPending] = useState(false);
   const handleSignOut = async () => {
+    clearBrowserByok();
     setPending(true);
     await signOut({ callbackUrl: "/" });
   };

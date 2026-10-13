@@ -1,0 +1,29 @@
+{
+  "document": {
+    "id": "conversion-doc-v1",
+    "title": "Kept title",
+    "elements": "  {\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Legacy hello\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1},\"tts\":{\"text\":\"Legacy hello\",\"audioUrl\":\"https://example.invalid/saved.mp3\"},\"unknown\":{\"retain\":\"\\u2603\",\"number\":1.00}}\n",
+    "entityType": "document",
+    "appState": null,
+    "parentId": null,
+    "screenShotLight": "",
+    "screenShotDark": "",
+    "createdAt": 1710000000001,
+    "updatedAt": 1710000000002,
+    "deletedAt": null,
+    "userId": "owner",
+    "publicAccess": "private",
+    "isActive": 1,
+    "thumbnailStatus": "pending",
+    "thumbnailUpdatedAt": null,
+    "thumbnailVersion": null
+  },
+  "share": {
+    "id": "conversion-share-v1",
+    "entityId": "conversion-doc-v1",
+    "userId": "reader",
+    "accessLevel": "view",
+    "createdAt": 1710000000003,
+    "updatedAt": 1710000000003
+  }
+}

@@ -92,6 +92,111 @@
       "when": 1761866938152,
       "tag": "0014_bright_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1791623795854,
+      "tag": "0015_private_pro",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791623928723,
+      "tag": "0016_pro_billing_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791640800000,
+      "tag": "0024_generated_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1791648000000,
+      "tag": "0025_pro_narration",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791648000001,
+      "tag": "0026_generated_recordings",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1791648000002,
+      "tag": "0027_pro_agent",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1791647826278,
+      "tag": "0028_device_agent",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1791650516575,
+      "tag": "0029_sandbox_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1791658000000,
+      "tag": "0030_apple_sandbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1791660000000,
+      "tag": "0031_pro_chat_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791685237782,
+      "tag": "0032_backend_migration_repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1791698049489,
+      "tag": "0033_generated_image_cleanup_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1791698049490,
+      "tag": "0034_tts_jobs_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1791698049491,
+      "tag": "0035_legacy_document_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1791698049492,
+      "tag": "0036_legacy_document_conversion_receipt",
+      "breakpoints": true
     }
   ]
 }

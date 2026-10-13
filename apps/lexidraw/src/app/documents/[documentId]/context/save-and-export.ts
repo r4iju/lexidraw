@@ -1,3 +1,4 @@
+import { editorRootPayload } from "~/lib/document-payload";
 import { documentSettings } from "~/lib/document-fonts";
 import { toast } from "sonner";
 import type { OpenEntity } from "~/hooks/use-open-entity-sync";
@@ -28,6 +29,17 @@ export function useSaveAndExportDocument({
   const { defaultFontFamily, lang } = useDocumentSettings();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
+  const savePayload = (editorState: EditorState) => ({
+    elements: editorRootPayload(JSON.stringify(editorState)),
+    appState: JSON.stringify({
+      ...documentSettings(entity.appState),
+      defaultFontFamily,
+      lang,
+    }),
+  });
+  const persistImage = (editorState: EditorState) =>
+    openDocument.sync.save(savePayload(editorState), { receipt: true });
+
   /** Saves what the editor holds; see `OpenEntitySync.save`. */
   const save = (
     editorState: EditorState,
@@ -38,14 +50,7 @@ export function useSaveAndExportDocument({
     },
   ) => {
     openDocument.sync
-      .save({
-        elements: JSON.stringify(editorState),
-        appState: JSON.stringify({
-          ...documentSettings(entity.appState),
-          defaultFontFamily,
-          lang,
-        }),
-      })
+      .save(savePayload(editorState))
       .then(
         (outcome) =>
           outcome === "saved" ? callbacks.onSuccess() : callbacks.onDropped?.(),
@@ -171,6 +176,7 @@ export function useSaveAndExportDocument({
   ]);
 
   return {
+    persistImage,
     saveBeforeLeaving,
     handleSave,
     handleSilentSave,

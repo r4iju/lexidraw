@@ -1,0 +1,1066 @@
+{
+  "behavior": "Pure data representation only; no identity handling behavior",
+  "equality": "Every ordered nine-column typed cell and BINARY PK/index tuple, not an ID-only set; credential cells NULL",
+  "identityMap": [
+    {
+      "currentId": [
+        "text",
+        "752d6f776e6572"
+      ],
+      "rawId": [
+        "text",
+        "752d6f776e6572"
+      ],
+      "targetId": [
+        "text",
+        "752d6f776e6572"
+      ]
+    },
+    {
+      "currentId": [
+        "text",
+        "752d726561646572"
+      ],
+      "rawId": [
+        "text",
+        "752d726561646572"
+      ],
+      "targetId": [
+        "text",
+        "752d726561646572"
+      ]
+    }
+  ],
+  "masterObjects": [
+    [
+      "index",
+      "User_email_key",
+      "Users",
+      "CREATE UNIQUE INDEX `User_email_key` ON `Users` (`email`)"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_Users_1",
+      "Users",
+      null
+    ],
+    [
+      "table",
+      "Users",
+      "Users",
+      "CREATE TABLE `Users` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text,\n\t`password` text,\n\t`emailVerified` numeric,\n\t`image` text,\n\t`createdAt` integer NOT NULL,\n\t`updatedAt` integer NOT NULL,\n\t`deletedAt` integer\n)"
+    ]
+  ],
+  "orderedColumns": [
+    "id",
+    "name",
+    "email",
+    "password",
+    "emailVerified",
+    "image",
+    "createdAt",
+    "updatedAt",
+    "deletedAt"
+  ],
+  "originalTimestampCertificate": {
+    "entries": [
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000100",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "User",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "752d6f776e6572",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000200",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "User",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "752d6f776e6572",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000300",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "User",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "752d726561646572",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000400",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "User",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "752d726561646572",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000500",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "CityCoordinates",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "9",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1600000000600",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "CityCoordinates",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "9",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000611",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "SharedDrawing",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "73642d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000722",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic unix-millisecond literal; no production inference",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": null,
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "missing",
+        "sourceTable": "SharedDocument",
+        "sourceUnit": "none_missing",
+        "typedRowId": {
+          "exact": "73782d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000100",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000100",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Drawing",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "647261772d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000200",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000200",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Drawing",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "647261772d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": null,
+        "destinationStorageClass": "null",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": null,
+          "storageClass": "null"
+        },
+        "sourceColumnOrMissingDestinationColumn": "deletedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Drawing",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "647261772d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000300",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000300",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Document",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "646f632d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000400",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000400",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Document",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "646f632d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000500",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000500",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "deletedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Document",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "646f632d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000600",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000600",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "SharedDrawing",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "73642d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000700",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000700",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "SharedDocument",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "73782d31",
+          "storageClass": "text"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000800",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000800",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "WebRTCAnswer",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "3",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000000900",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000000900",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "WebRTCAnswer",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "3",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000001000",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000001000",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "createdAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "WebRTCOffer",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "7",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000001100",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000001100",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "updatedAt",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "WebRTCOffer",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "7",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000001200",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000001200",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "timestamp",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Analytics",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "5",
+          "storageClass": "integer"
+        }
+      },
+      {
+        "conversion": {
+          "denominatorDecimal": "1",
+          "numeratorDecimal": "1",
+          "offsetDecimal": "0",
+          "rounding": "forbidden"
+        },
+        "destinationIntegerDecimal": "1700000001200",
+        "destinationStorageClass": "integer",
+        "destinationUnit": "unix_milliseconds",
+        "origin": {
+          "assertion": "Explicit synthetic integer Unix milliseconds; NULL deletedAt certifies only missing nullable value, no historical claim.",
+          "certifier": "independent-synthetic-oracle-author-v3",
+          "evidenceRef": "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/historical-prefix-adapter-fixture-preparation-v3/timestamp-certificate.json#/entries",
+          "kind": "syntheticFixture"
+        },
+        "rawSource": {
+          "exact": "1700000001200",
+          "storageClass": "integer"
+        },
+        "sourceColumnOrMissingDestinationColumn": "timestamp",
+        "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+        "sourcePresence": "present",
+        "sourceTable": "Analytics",
+        "sourceUnit": "unix_milliseconds",
+        "typedRowId": {
+          "exact": "6",
+          "storageClass": "integer"
+        }
+      }
+    ],
+    "qualification": "Every present and missing live timestamp explicitly synthetic, exact semantic unit and storage class. Prisma values raw only, no time semantics or Drizzle eligibility. No missing value derived from clock/default/journal/minimum/source maxima. Shared updatedAt explicit independent values 1700000000611 and 1700000000722.",
+    "sourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+    "version": 1
+  },
+  "physical": {
+    "foreignKeys": [],
+    "indexList": [
+      [
+        0,
+        "User_email_key",
+        1,
+        "c",
+        0
+      ],
+      [
+        1,
+        "sqlite_autoindex_Users_1",
+        1,
+        "pk",
+        0
+      ]
+    ],
+    "indexXinfo": {
+      "User_email_key": [
+        [
+          0,
+          2,
+          "email",
+          0,
+          "BINARY",
+          1
+        ],
+        [
+          1,
+          -1,
+          null,
+          0,
+          "BINARY",
+          0
+        ]
+      ],
+      "sqlite_autoindex_Users_1": [
+        [
+          0,
+          0,
+          "id",
+          0,
+          "BINARY",
+          1
+        ],
+        [
+          1,
+          -1,
+          null,
+          0,
+          "BINARY",
+          0
+        ]
+      ]
+    },
+    "xinfo": [
+      [
+        0,
+        "id",
+        "TEXT",
+        1,
+        null,
+        1,
+        0
+      ],
+      [
+        1,
+        "name",
+        "TEXT",
+        1,
+        null,
+        0,
+        0
+      ],
+      [
+        2,
+        "email",
+        "TEXT",
+        0,
+        null,
+        0,
+        0
+      ],
+      [
+        3,
+        "password",
+        "TEXT",
+        0,
+        null,
+        0,
+        0
+      ],
+      [
+        4,
+        "emailVerified",
+        "numeric",
+        0,
+        null,
+        0,
+        0
+      ],
+      [
+        5,
+        "image",
+        "TEXT",
+        0,
+        null,
+        0,
+        0
+      ],
+      [
+        6,
+        "createdAt",
+        "INTEGER",
+        1,
+        null,
+        0,
+        0
+      ],
+      [
+        7,
+        "updatedAt",
+        "INTEGER",
+        1,
+        null,
+        0,
+        0
+      ],
+      [
+        8,
+        "deletedAt",
+        "INTEGER",
+        0,
+        null,
+        0,
+        0
+      ]
+    ]
+  },
+  "rawSixColumnParents": [
+    {
+      "archiveTuple": [
+        [
+          "text",
+          "7368613235363a30373439323134333034636539383733306336343336383838323161336137643436646432613432613565376261393637363962383665663766623033336435"
+        ],
+        [
+          "text",
+          "55736572"
+        ],
+        [
+          "blob",
+          "5b2274657874222c223735326436663737366536353732225d"
+        ],
+        [
+          "blob",
+          "0a435245415445205441424c452060557365726020280a09606964602074657874205052494d415259204b4559204e4f54204e554c4c2c0a09606e616d65602074657874204e4f54204e554c4c2c0a0960656d61696c6020746578742c0a096070617373776f72646020746578742c0a0960656d61696c566572696669656460206e756d657269632c0a0960696d6167656020746578740a293b0a"
+        ],
+        [
+          "blob",
+          "5b226964222c226e616d65222c22656d61696c222c2270617373776f7264222c22656d61696c5665726966696564222c22696d616765225d"
+        ],
+        [
+          "blob",
+          "7b22636f6c756d6e73223a5b226964222c226e616d65222c22656d61696c222c2270617373776f7264222c22656d61696c5665726966696564222c22696d616765225d2c2276616c756573223a5b5b2274657874222c223735326436663737366536353732225d2c5b2274657874222c2234663737366536353732225d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d5d2c2276657273696f6e223a317d"
+        ],
+        [
+          "integer",
+          "1"
+        ]
+      ],
+      "envelope": {
+        "columns": [
+          "id",
+          "name",
+          "email",
+          "password",
+          "emailVerified",
+          "image"
+        ],
+        "values": [
+          [
+            "text",
+            "752d6f776e6572"
+          ],
+          [
+            "text",
+            "4f776e6572"
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ]
+        ],
+        "version": 1
+      }
+    },
+    {
+      "archiveTuple": [
+        [
+          "text",
+          "7368613235363a30373439323134333034636539383733306336343336383838323161336137643436646432613432613565376261393637363962383665663766623033336435"
+        ],
+        [
+          "text",
+          "55736572"
+        ],
+        [
+          "blob",
+          "5b2274657874222c2237353264373236353631363436353732225d"
+        ],
+        [
+          "blob",
+          "0a435245415445205441424c452060557365726020280a09606964602074657874205052494d415259204b4559204e4f54204e554c4c2c0a09606e616d65602074657874204e4f54204e554c4c2c0a0960656d61696c6020746578742c0a096070617373776f72646020746578742c0a0960656d61696c566572696669656460206e756d657269632c0a0960696d6167656020746578740a293b0a"
+        ],
+        [
+          "blob",
+          "5b226964222c226e616d65222c22656d61696c222c2270617373776f7264222c22656d61696c5665726966696564222c22696d616765225d"
+        ],
+        [
+          "blob",
+          "7b22636f6c756d6e73223a5b226964222c226e616d65222c22656d61696c222c2270617373776f7264222c22656d61696c5665726966696564222c22696d616765225d2c2276616c756573223a5b5b2274657874222c2237353264373236353631363436353732225d2c5b2274657874222c22353236353631363436353732225d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d2c5b226e756c6c222c6e756c6c5d5d2c2276657273696f6e223a317d"
+        ],
+        [
+          "integer",
+          "1"
+        ]
+      ],
+      "envelope": {
+        "columns": [
+          "id",
+          "name",
+          "email",
+          "password",
+          "emailVerified",
+          "image"
+        ],
+        "values": [
+          [
+            "text",
+            "752d726561646572"
+          ],
+          [
+            "text",
+            "526561646572"
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ],
+          [
+            "null",
+            null
+          ]
+        ],
+        "version": 1
+      }
+    }
+  ],
+  "typedRows": [
+    [
+      [
+        "text",
+        "752d6f776e6572"
+      ],
+      [
+        "text",
+        "4f776e6572"
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "integer",
+        "1600000000100"
+      ],
+      [
+        "integer",
+        "1600000000200"
+      ],
+      [
+        "null",
+        null
+      ]
+    ],
+    [
+      [
+        "text",
+        "752d726561646572"
+      ],
+      [
+        "text",
+        "526561646572"
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "null",
+        null
+      ],
+      [
+        "integer",
+        "1600000000300"
+      ],
+      [
+        "integer",
+        "1600000000400"
+      ],
+      [
+        "null",
+        null
+      ]
+    ]
+  ]
+}

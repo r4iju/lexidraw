@@ -1,0 +1,106 @@
+import type { ProLedger } from "~/server/pro/ledger";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { ImageInput, IMAGE_UNAVAILABLE } from "~/lib/images/contracts";
+import type { ProImageOperation } from "~/server/pro/image-operation";
+import {
+  SaveImageInput,
+  type GeneratedImages,
+} from "~/server/entities/generated-images";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+export function createImagePowerRouter(deps: {
+  executor?: ProImageOperation;
+  ledger?: () => ProLedger;
+  images: () => GeneratedImages;
+  source: (account: string) => Promise<string>;
+}) {
+  return createTRPCRouter({
+    capability: protectedProcedure.query(async ({ ctx }) => ({
+      available: !!deps.executor,
+      maximum: deps.executor
+        ? (await deps.executor.ledger.status(ctx.session.user.id)).entitled
+          ? (await deps.executor.periodBook(ctx.session.user.id)).quote
+          : deps.executor.book.quote
+        : 0,
+      fixture: !!deps.executor,
+      reason: deps.executor
+        ? "Injected private image fixture; no actual service verification."
+        : IMAGE_UNAVAILABLE,
+    })),
+    generate: protectedProcedure
+      .input(ImageInput)
+      .mutation(async ({ ctx, input }) => {
+        if (!deps.executor)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: IMAGE_UNAVAILABLE,
+          });
+        if ((await deps.source(ctx.session.user.id)) !== "pro")
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Select Pro in AI Power",
+          });
+        return deps.executor.start(ctx.session.user.id, input);
+      }),
+    operation: protectedProcedure
+      .input(z.strictObject({ id: z.string().min(1).max(100) }))
+      .query(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Owned image history unavailable",
+          });
+        const operation = await ledger.operation(ctx.session.user.id, input.id);
+        if (operation.feature !== "image")
+          throw new TRPCError({ code: "NOT_FOUND" });
+        return operation;
+      }),
+    current: protectedProcedure
+      .input(z.strictObject({ idempotencyKey: z.string().min(1).max(100) }))
+      .query(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Owned image history unavailable",
+          });
+        return ledger.ownedOperationByKey(
+          ctx.session.user.id,
+          input.idempotencyKey,
+          "image",
+        );
+      }),
+    cancel: protectedProcedure
+      .input(z.strictObject({ id: z.string().min(1).max(100) }))
+      .mutation(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Owned image history unavailable",
+          });
+        const operation = await ledger.operation(ctx.session.user.id, input.id);
+        if (operation.feature !== "image")
+          throw new TRPCError({ code: "NOT_FOUND" });
+        return ledger.cancel(ctx.session.user.id, input.id);
+      }),
+    save: protectedProcedure
+      .input(SaveImageInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await deps.images().save(ctx.session.user.id, input);
+        } catch (error) {
+          const expired =
+            error instanceof Error &&
+            error.message.startsWith("Upload expired");
+          throw new TRPCError({
+            code: expired ? "PRECONDITION_FAILED" : "BAD_REQUEST",
+            message: expired
+              ? "Upload expired. Retry the retained image."
+              : "Image sync failed. Keep the completed image and retry upload.",
+          });
+        }
+      }),
+  });
+}

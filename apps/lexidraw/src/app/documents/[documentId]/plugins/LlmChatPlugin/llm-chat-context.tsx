@@ -276,6 +276,8 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       return;
     }
 
+    if (prevMode === state.mode) return;
+
     // Save previous mode's messages immediately if mode changed
     if (prevMode !== state.mode && prevMessagesRef.current.length > 0) {
       cancelSaveMessages(); // Cancel any pending debounced save
@@ -309,20 +311,25 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
     saveMessagesDebounced(documentId, state.mode, state.messages);
   }, [documentId, state.mode, state.messages, saveMessagesDebounced]);
 
-  // Cleanup: save current state on unmount
+  const cancelSaveRef = useRef(cancelSaveMessages);
+  useEffect(() => {
+    cancelSaveRef.current = cancelSaveMessages;
+  }, [cancelSaveMessages]);
+
+  // External system: persist local chat storage when this document surface unmounts.
   useEffect(() => {
     return () => {
       if (!documentId) return;
-      cancelSaveMessages();
+      cancelSaveRef.current();
       if (prevMessagesRef.current.length > 0) {
         saveMessages(
           documentId,
-          prevModeRef.current ?? state.mode,
+          prevModeRef.current ?? initial.mode,
           prevMessagesRef.current,
         );
       }
     };
-  }, [documentId, cancelSaveMessages, state.mode]);
+  }, [documentId]);
 
   return (
     <ChatStateCtx.Provider value={state}>

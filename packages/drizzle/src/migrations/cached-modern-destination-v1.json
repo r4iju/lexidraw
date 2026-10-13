@@ -1,0 +1,1079 @@
+{
+  "Users": {
+    "objects": [
+      {
+        "type": "index",
+        "name": "User_email_key",
+        "tbl_name": "Users",
+        "sql": "CREATE UNIQUE INDEX `User_email_key` ON `Users` (`email`)"
+      },
+      {
+        "type": "index",
+        "name": "User_name_idx",
+        "tbl_name": "Users",
+        "sql": "CREATE INDEX `User_name_idx` ON `Users` (`name`)"
+      },
+      {
+        "type": "table",
+        "name": "Users",
+        "tbl_name": "Users",
+        "sql": "CREATE TABLE `Users` (\n  `id` text PRIMARY KEY NOT NULL,\n  `name` text NOT NULL,\n  `config` text,\n  `email` text,\n  `password` text,\n  `emailVerified` numeric,\n  `image` text,\n  `isActive` integer NOT NULL DEFAULT 1,\n  `createdAt` integer NOT NULL DEFAULT 1735950685000,\n  `updatedAt` integer NOT NULL DEFAULT 1735950685000,\n  `deletedAt` integer\n)"
+      },
+      {
+        "type": "index",
+        "name": "sqlite_autoindex_Users_1",
+        "tbl_name": "Users",
+        "sql": null
+      }
+    ],
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "cid": 1,
+        "name": "name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 2,
+        "name": "config",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 3,
+        "name": "email",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 4,
+        "name": "password",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 5,
+        "name": "emailVerified",
+        "type": "numeric",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 6,
+        "name": "image",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 7,
+        "name": "isActive",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 8,
+        "name": "createdAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1735950685000",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 9,
+        "name": "updatedAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1735950685000",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 10,
+        "name": "deletedAt",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "name": "User_email_key",
+        "unique": 1,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 3,
+            "name": "email",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "User_name_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "name",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "sqlite_autoindex_Users_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 0,
+            "name": "id",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "Entities": {
+    "objects": [
+      {
+        "type": "table",
+        "name": "Entities",
+        "tbl_name": "Entities",
+        "sql": "CREATE TABLE `Entities` (\n  `id` text PRIMARY KEY NOT NULL,\n  `title` text NOT NULL,\n  `elements` text NOT NULL,\n  `appState` text,\n  `entityType` text NOT NULL DEFAULT 'drawing',\n  `parentId` text,\n  `screenShotLight` text NOT NULL DEFAULT '',\n  `screenShotDark` text NOT NULL DEFAULT '',\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  `deletedAt` integer,\n  `userId` text NOT NULL,\n  `publicAccess` text NOT NULL,\n  `isActive` integer NOT NULL DEFAULT 1,\n  `thumbnailStatus` text DEFAULT 'pending',\n  `thumbnailUpdatedAt` integer,\n  `thumbnailVersion` text,\n  FOREIGN KEY (`parentId`) REFERENCES `Entities` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
+      },
+      {
+        "type": "index",
+        "name": "Entity_createdAt_idx",
+        "tbl_name": "Entities",
+        "sql": "CREATE INDEX `Entity_createdAt_idx` ON `Entities` (`createdAt`)"
+      },
+      {
+        "type": "index",
+        "name": "Entity_parentId_idx",
+        "tbl_name": "Entities",
+        "sql": "CREATE INDEX `Entity_parentId_idx` ON `Entities` (`parentId`)"
+      },
+      {
+        "type": "index",
+        "name": "Entity_title_idx",
+        "tbl_name": "Entities",
+        "sql": "CREATE INDEX `Entity_title_idx` ON `Entities` (`title`)"
+      },
+      {
+        "type": "index",
+        "name": "Entity_unique_directory_name",
+        "tbl_name": "Entities",
+        "sql": "CREATE UNIQUE INDEX `Entity_unique_directory_name` ON `Entities` (`title`, `parentId`) WHERE entityType = 'directory'"
+      },
+      {
+        "type": "index",
+        "name": "Entity_userId_idx",
+        "tbl_name": "Entities",
+        "sql": "CREATE INDEX `Entity_userId_idx` ON `Entities` (`userId`)"
+      },
+      {
+        "type": "index",
+        "name": "sqlite_autoindex_Entities_1",
+        "tbl_name": "Entities",
+        "sql": null
+      }
+    ],
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "cid": 1,
+        "name": "title",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 2,
+        "name": "elements",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 3,
+        "name": "appState",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 4,
+        "name": "entityType",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'drawing'",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 5,
+        "name": "parentId",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 6,
+        "name": "screenShotLight",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 7,
+        "name": "screenShotDark",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 8,
+        "name": "createdAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 9,
+        "name": "updatedAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 10,
+        "name": "deletedAt",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 11,
+        "name": "userId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 12,
+        "name": "publicAccess",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 13,
+        "name": "isActive",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 14,
+        "name": "thumbnailStatus",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": "'pending'",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 15,
+        "name": "thumbnailUpdatedAt",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 16,
+        "name": "thumbnailVersion",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "Users",
+        "from": "userId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "Entities",
+        "from": "parentId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "Entity_createdAt_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 8,
+            "name": "createdAt",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "Entity_parentId_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 5,
+            "name": "parentId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "Entity_title_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "title",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "Entity_unique_directory_name",
+        "unique": 1,
+        "origin": "c",
+        "partial": 1,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "title",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": 5,
+            "name": "parentId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 2,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "Entity_userId_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 11,
+            "name": "userId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "sqlite_autoindex_Entities_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 0,
+            "name": "id",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "SharedEntities": {
+    "objects": [
+      {
+        "type": "table",
+        "name": "SharedEntities",
+        "tbl_name": "SharedEntities",
+        "sql": "CREATE TABLE `SharedEntities` (\n  `id` text PRIMARY KEY NOT NULL,\n  `entityId` text NOT NULL,\n  `userId` text NOT NULL,\n  `accessLevel` text NOT NULL,\n  `createdAt` integer NOT NULL DEFAULT 1735950685000,\n  `updatedAt` integer NOT NULL DEFAULT 1735950685000,\n  FOREIGN KEY (`entityId`) REFERENCES `Entities` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
+      },
+      {
+        "type": "index",
+        "name": "SharedEntity_entityId_idx",
+        "tbl_name": "SharedEntities",
+        "sql": "CREATE INDEX `SharedEntity_entityId_idx` ON `SharedEntities` (`entityId`)"
+      },
+      {
+        "type": "index",
+        "name": "SharedEntity_entityId_userId_key",
+        "tbl_name": "SharedEntities",
+        "sql": "CREATE UNIQUE INDEX `SharedEntity_entityId_userId_key` ON `SharedEntities` (`entityId`, `userId`)"
+      },
+      {
+        "type": "index",
+        "name": "SharedEntity_userId_idx",
+        "tbl_name": "SharedEntities",
+        "sql": "CREATE INDEX `SharedEntity_userId_idx` ON `SharedEntities` (`userId`)"
+      },
+      {
+        "type": "index",
+        "name": "sqlite_autoindex_SharedEntities_1",
+        "tbl_name": "SharedEntities",
+        "sql": null
+      }
+    ],
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "cid": 1,
+        "name": "entityId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 2,
+        "name": "userId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 3,
+        "name": "accessLevel",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 4,
+        "name": "createdAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1735950685000",
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 5,
+        "name": "updatedAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1735950685000",
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "Users",
+        "from": "userId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "Entities",
+        "from": "entityId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "SharedEntity_entityId_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "entityId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "SharedEntity_entityId_userId_key",
+        "unique": 1,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "entityId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": 2,
+            "name": "userId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 2,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "SharedEntity_userId_idx",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 2,
+            "name": "userId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "sqlite_autoindex_SharedEntities_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 0,
+            "name": "id",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "Tags": {
+    "objects": [
+      {
+        "type": "index",
+        "name": "Tag_name_unique",
+        "tbl_name": "Tags",
+        "sql": "CREATE UNIQUE INDEX `Tag_name_unique` ON `Tags` (`name`)"
+      },
+      {
+        "type": "table",
+        "name": "Tags",
+        "tbl_name": "Tags",
+        "sql": "CREATE TABLE `Tags` (\n  `id` text PRIMARY KEY NOT NULL,\n  `name` text NOT NULL,\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL\n)"
+      },
+      {
+        "type": "index",
+        "name": "Tags_name_unique",
+        "tbl_name": "Tags",
+        "sql": "CREATE UNIQUE INDEX `Tags_name_unique` ON `Tags` (`name`)"
+      },
+      {
+        "type": "index",
+        "name": "sqlite_autoindex_Tags_1",
+        "tbl_name": "Tags",
+        "sql": null
+      }
+    ],
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "cid": 1,
+        "name": "name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 2,
+        "name": "createdAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 3,
+        "name": "updatedAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "name": "Tag_name_unique",
+        "unique": 1,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "name",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "Tags_name_unique",
+        "unique": 1,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 1,
+            "name": "name",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      },
+      {
+        "name": "sqlite_autoindex_Tags_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 0,
+            "name": "id",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "EntityTags": {
+    "objects": [
+      {
+        "type": "index",
+        "name": "EntityTag_entityId_tagId_userId_key",
+        "tbl_name": "EntityTags",
+        "sql": "CREATE UNIQUE INDEX `EntityTag_entityId_tagId_userId_key` ON `EntityTags` (`entityId`, `tagId`, `userId`)"
+      },
+      {
+        "type": "table",
+        "name": "EntityTags",
+        "tbl_name": "EntityTags",
+        "sql": "CREATE TABLE `EntityTags` (\n  `entityId` text NOT NULL,\n  `tagId` text NOT NULL,\n  `userId` text NOT NULL,\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  FOREIGN KEY (`entityId`) REFERENCES `Entities` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`tagId`) REFERENCES `Tags` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
+      }
+    ],
+    "columns": [
+      {
+        "cid": 0,
+        "name": "entityId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 1,
+        "name": "tagId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 2,
+        "name": "userId",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 3,
+        "name": "createdAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "cid": 4,
+        "name": "updatedAt",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "Users",
+        "from": "userId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "Tags",
+        "from": "tagId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 0,
+        "table": "Entities",
+        "from": "entityId",
+        "to": "id",
+        "on_update": "CASCADE",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "EntityTag_entityId_tagId_userId_key",
+        "unique": 1,
+        "origin": "c",
+        "partial": 0,
+        "keys": [
+          {
+            "seqno": 0,
+            "cid": 0,
+            "name": "entityId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 1,
+            "cid": 1,
+            "name": "tagId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 2,
+            "cid": 2,
+            "name": "userId",
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 1
+          },
+          {
+            "seqno": 3,
+            "cid": -1,
+            "name": null,
+            "desc": 0,
+            "coll": "BINARY",
+            "key": 0
+          }
+        ]
+      }
+    ]
+  }
+}

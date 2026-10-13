@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
@@ -14,6 +15,10 @@ public enum SignInError: Error, Equatable {
 public struct Refusal: Error, LocalizedError, Sendable, Equatable {
   public let status: Int
   public let message: String
+  public let nonAcceptance: ProNonAcceptance?
+  public init(status: Int, message: String, nonAcceptance: ProNonAcceptance? = nil) {
+    self.status = status; self.message = message; self.nonAcceptance = nonAcceptance
+  }
 
   public var errorDescription: String? { message }
 }
@@ -27,11 +32,25 @@ public struct Account: Sendable {
   let origin: URL
   let store: any TokenStore
   let transport: any ClientTransport
+  let savedImageTransport: any ClientTransport
+  let providerKeyStore: (@Sendable (String) -> any TokenStore)?
+  let providerConfiguration: @Sendable () -> URLSessionConfiguration
+  let providerCredentialGuard: NativeCredentialGuard
 
-  public init(origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport()) {
+  public init(
+    origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport(),
+    savedImageTransport: (any ClientTransport)? = nil,
+    providerKeyStore: (@Sendable (String) -> any TokenStore)? = nil,
+    providerConfiguration: @escaping @Sendable () -> URLSessionConfiguration = { .ephemeral },
+    providerCredentialGuard: NativeCredentialGuard = .shared
+  ) {
+    self.providerCredentialGuard = providerCredentialGuard
+    self.providerConfiguration = providerConfiguration
+    self.providerKeyStore = providerKeyStore
     self.origin = origin
     self.store = store
     self.transport = transport
+    self.savedImageTransport = savedImageTransport ?? privateImageTransport()
   }
 
   /// The server and the Keychain item that `bundle`'s Info.plist names, so
@@ -46,7 +65,8 @@ public struct Account: Sendable {
       return value
     }
     guard let origin = URL(string: setting("LexidrawServerURL")) else {
-      fatalError("LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
+      fatalError(
+        "LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
     }
     return Account(
       origin: origin,
@@ -56,7 +76,8 @@ public struct Account: Sendable {
 
   /// Signed in with the token kept from an earlier launch, if there is one.
   public func restore() throws -> Session? {
-    try store.load().map(session(token:))
+    guard !NativeAppTokenResidue.shared.contains(store) else { return nil }
+    return try store.load().map(session(token:))
   }
 
   /// Signs in through the web's own sign-in page. `browser` opens `url` in a
@@ -67,7 +88,8 @@ public struct Account: Sendable {
     browser: @Sendable (_ url: URL) async throws -> URL
   ) async throws -> Session {
     let pkce = PKCE()
-    var page = URLComponents(url: origin.appending(path: "native-sign-in"), resolvingAgainstBaseURL: false)!
+    var page = URLComponents(
+      url: origin.appending(path: "native-sign-in"), resolvingAgainstBaseURL: false)!
     page.queryItems = [
       URLQueryItem(name: "redirectUri", value: Self.callback.absoluteString),
       URLQueryItem(name: "codeChallenge", value: pkce.challenge),
@@ -85,7 +107,9 @@ public struct Account: Sendable {
     do {
       token = try await unwrapped {
         try await connection(token: nil).client.nativeSignInExchange(
-          body: .json(.init(code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
+          body: .json(
+            .init(
+              code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
         )
       }.ok.body.json.token
     } catch let refusal as Refusal where refusal.status == 400 {
@@ -93,6 +117,7 @@ public struct Account: Sendable {
     }
     do {
       try store.save(token)
+      NativeAppTokenResidue.shared.clear(store)
     } catch {
       // Otherwise the token would stay live with no device holding it.
       _ = try? await connection(token: token).client.tokensRevokeCurrent(body: .json(.init()))
@@ -102,16 +127,44 @@ public struct Account: Sendable {
   }
 
   private func session(token: String) -> Session {
-    Session(origin: origin, connection: connection(token: token), store: store)
+    let scope = SHA256.hash(data: Data((origin.absoluteString + "\n" + token).utf8)).map {
+      String(format: "%02x", $0)
+    }.joined()
+    let files = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first.map {
+      NativeTextFileStore(directory: $0.appending(path: "lexidraw/byok-text/" + scope))
+    }
+    let lifetime = NativeAIHandle(
+      defaultStore: providerKeyStore == nil
+        ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil,
+      files: files,
+      narrationDirectory: FileManager.default.urls(
+        for: .applicationSupportDirectory, in: .userDomainMask
+      ).first?.appending(path: "lexidraw/device-narration/" + scope),
+      credentialGuard: providerCredentialGuard)
+    return Session(
+      origin: origin, connection: connection(token: token, lifetime: lifetime), store: store,
+      revokeToken: {
+        _ = try await unwrapped {
+          try await connection(token: token).client.tokensRevokeCurrent(body: .json(.init()))
+        }.ok
+      },
+      savedImageTransport: CredentialGuardedTransport(
+        underlying: SessionBoundTransport(underlying: savedImageTransport, lifetime: lifetime)),
+      aiHandle: lifetime,
+      providerKeyStore: providerKeyStore, providerConfiguration: providerConfiguration)
   }
 
-  private func connection(token: String?) -> Connection {
-    Connection(
+  private func connection(token: String?, lifetime: NativeAIHandle? = nil) -> Connection {
+    let authorized: any ClientTransport = lifetime.map {
+      SessionBoundTransport(underlying: transport, lifetime: $0) as any ClientTransport
+    } ?? transport
+    return Connection(
       serverURL: origin.appending(path: "api/v1"),
-      transport: transport,
+      transport: CredentialGuardedTransport(underlying: authorized),
       middlewares: [Refusals(), JSONContentType()] + (token.map { [BearerToken(token: $0)] } ?? [])
     )
   }
+
 }
 
 /// The server as this app reaches it: the generated client, and the same
@@ -138,6 +191,13 @@ struct Connection: Sendable {
 
   /// Sends a JSON body through the middlewares, as the client would.
   func send(_ request: HTTPRequest, json: Data, operationID: String) async throws {
+    _ = try await exchange(request, json: json, operationID: operationID)
+  }
+
+  func exchange(_ request: HTTPRequest, json: Data?, operationID: String, baseURL: URL? = nil)
+    async throws
+    -> (HTTPResponse, HTTPBody?)
+  {
     var request = request
     request.headerFields[.contentType] = "application/json"
     let transport = transport
@@ -146,17 +206,23 @@ struct Connection: Sendable {
     }
     for middleware in middlewares.reversed() {
       let inner = next
-      next = { try await middleware.intercept($0, body: $1, baseURL: $2, operationID: operationID, next: inner) }
+      next = {
+        try await middleware.intercept(
+          $0, body: $1, baseURL: $2, operationID: operationID, next: inner)
+      }
     }
-    _ = try await next(request, HTTPBody(json), serverURL)
+    return try await next(request, json.map { HTTPBody($0) }, baseURL ?? serverURL)
   }
 
   /// Sends `data` somewhere other than the server, so past the middlewares:
   /// neither the app's token nor the server's way of refusing belong there.
-  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String]) async throws
+  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String])
+    async throws
     -> (HTTPResponse, HTTPBody?)
   {
-    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw URLError(.badURL) }
+    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+      throw URLError(.badURL)
+    }
     let path = parts.percentEncodedPath + (parts.percentEncodedQuery.map { "?\($0)" } ?? "")
     parts.percentEncodedPath = ""
     parts.percentEncodedQuery = nil
@@ -167,7 +233,8 @@ struct Connection: Sendable {
       fields[name] = value
     }
     return try await transport.send(
-      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields), body: HTTPBody(data),
+      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields),
+      body: HTTPBody(data),
       baseURL: origin, operationID: "outside")
   }
 }
@@ -197,14 +264,14 @@ private struct Refusals: ClientMiddleware {
   ) async throws -> (HTTPResponse, HTTPBody?) {
     let (response, answer) = try await next(request, body, baseURL)
     guard response.status.kind != .successful else { return (response, answer) }
-    let said: Said? =
-      if let answer, let data = try? await Data(collecting: answer, upTo: 1 << 16) {
-        try? JSONDecoder().decode(Said.self, from: data)
-      } else {
-        nil
-      }
+    let data: Data? = if let answer { try? await Data(collecting: answer, upTo: 1 << 16) } else { nil }
+    let said = data.flatMap { try? JSONDecoder().decode(Said.self, from: $0) }
+    let nonAcceptance = operationID == "pro.autocomplete" && response.status.code == 403 ? data.flatMap(ProNonAcceptance.fromRPC) : nil
     throw Refusal(
-      status: response.status.code, message: said?.message ?? "The server answered \(response.status.code).")
+      status: response.status.code,
+      message: said?.message ?? "The server answered \(response.status.code).",
+      nonAcceptance: nonAcceptance)
+
   }
 }
 

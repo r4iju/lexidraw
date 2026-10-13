@@ -1,3 +1,14 @@
+import { readEntityConflictContent } from "~/server/entities/save-content";
+import {
+  editorRootPayload,
+  InvalidDocumentPayloadError,
+} from "~/lib/document-payload";
+import {
+  readDocumentMergeBase,
+  documentMergeBasePredicate,
+  mergedDocumentElements,
+} from "~/server/documents/document-store";
+import { generatedThumbnailProcedures } from "~/server/entities/generated-thumbnail";
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import { z } from "zod";
 import {
@@ -51,7 +62,6 @@ import {
 } from "@vercel/blob/client";
 import { headers } from "next/headers";
 import {
-  drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
 import { measureImages } from "~/server/documents/measure-images";
@@ -448,6 +458,7 @@ function createdContent(input: CreateEntity) {
 }
 
 export const entityRouter = createTRPCRouter({
+  ...generatedThumbnailProcedures,
   create: protectedProcedure
     .meta({
       openapi: {
@@ -577,6 +588,7 @@ export const entityRouter = createTRPCRouter({
         ctx.drizzle,
         input.id,
         ctx.session?.user.id ?? "",
+      true,
       );
       if (!entity) throw notFound();
       const parentId =
@@ -605,6 +617,19 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
+      const documentBase =
+        entity.entityType === "document"
+          ? await readDocumentMergeBase(ctx.drizzle, input.id)
+          : null;
+      if (entity.entityType === "document" && !documentBase)
+        throw new InvalidDocumentPayloadError();
+      const projectedElements = documentBase
+        ? editorRootPayload(input.elements)
+        : input.elements;
+      const preparedElements =
+        entity.entityType === "document" && ctx.auth.kind === "token"
+          ? await measureImages(projectedElements)
+          : projectedElements;
       const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
@@ -613,10 +638,9 @@ export const entityRouter = createTRPCRouter({
           ...(appState !== undefined ? { appState } : {}),
           // The browser measures its own pictures as they load, and saves
           // again soon after, so only a caller without one waits on the network.
-          elements:
-            entity.entityType === "document" && ctx.auth.kind === "token"
-              ? await measureImages(input.elements)
-              : input.elements,
+          elements: documentBase
+            ? mergedDocumentElements(documentBase, preparedElements)
+            : preparedElements,
           ...(parentId !== undefined ? { parentId } : {}),
           // Strictly increasing, so a compare-and-set caller can tell this save
           // apart from its own; see nextUpdatedAt.
@@ -628,22 +652,22 @@ export const entityRouter = createTRPCRouter({
         .where(
           and(
             eq(schema.entities.id, input.id),
+            documentBase ? documentMergeBasePredicate(documentBase) : undefined,
             isNull(schema.entities.deletedAt),
             // The same compare-and-set as the document and drawing writes.
             input.ifUnmodifiedSince === undefined
               ? undefined
-              : eq(
-                  schema.entities.updatedAt,
-                  new Date(input.ifUnmodifiedSince),
-                ),
+              : eq(schema.entities.updatedAt, new Date(input.ifUnmodifiedSince)),
           ),
         )
         .returning();
       if (!saved[0]) {
-        const current = await drizzleDocumentStore(
+        const current = await readEntityConflictContent(
           ctx.drizzle,
+          input.id,
           ctx.session?.user.id ?? "",
-        ).read(input.id);
+          entity.entityType,
+        );
         if (!current) throw notFound();
         const stale = new StaleDocumentError(
           current.updatedAt,

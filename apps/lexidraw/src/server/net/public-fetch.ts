@@ -1,6 +1,6 @@
 import * as http from "node:http";
 import * as https from "node:https";
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 import * as zlib from "node:zlib";
 import {
   type Address,
@@ -143,11 +143,44 @@ function unpacked(body: Readable, encoding: string | null): Readable {
 /** Through a proxy, which looks the host up again on its own network. */
 export const proxyHop =
   (dispatcher: ProxyDispatcher): Hop =>
-  async (url, _address, { method, headers, signal }) =>
-    undiciFetch(url, {
+  async (url, _address, { method, headers, signal }) => {
+    const upstream = await undiciFetch(url, {
       method,
-      headers,
+      headers: Array.from(headers),
       signal,
       redirect: "manual",
       dispatcher,
     });
+    const answered = new Headers();
+    for (const [name, value] of upstream.headers)
+      if (name.toLowerCase() !== "set-cookie") answered.append(name, value);
+    for (const cookie of upstream.headers.getSetCookie())
+      answered.append("set-cookie", cookie);
+    const body = upstream.body
+      ? streamOf(Readable.fromWeb(upstream.body))
+      : null;
+    const response =
+      upstream.status === 0
+        ? Response.error()
+        : new Response(body, {
+            status: upstream.status,
+            statusText: upstream.statusText,
+            headers: answered,
+          });
+    return withResponseMetadata(response, upstream);
+  };
+
+function withResponseMetadata(
+  response: Response,
+  upstream: Awaited<ReturnType<typeof undiciFetch>>,
+): Response {
+  return Object.defineProperties(response, {
+    url: { get: () => upstream.url },
+    redirected: { get: () => upstream.redirected },
+    type: { get: () => upstream.type },
+    clone: {
+      value: () =>
+        withResponseMetadata(Response.prototype.clone.call(response), upstream),
+    },
+  });
+}

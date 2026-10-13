@@ -1,0 +1,405 @@
+{
+  "accounting": {
+    "completedTarget": {
+      "encodedBytes": 770424,
+      "tables": {
+        "Accounts": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Analytics": {
+          "cells": 20,
+          "encodedBytes": 234,
+          "rows": 2
+        },
+        "CityCoordinates": {
+          "cells": 6,
+          "encodedBytes": 56,
+          "rows": 1
+        },
+        "Entities": {
+          "cells": 34,
+          "encodedBytes": 618,
+          "rows": 2
+        },
+        "EntityTags": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "HistoricalAdapterContinuationReceiptV1": {
+          "cells": 19,
+          "encodedBytes": 171363,
+          "rows": 1
+        },
+        "HistoricalDataAdapterReceiptV1": {
+          "cells": 13,
+          "encodedBytes": 23025,
+          "rows": 1
+        },
+        "HistoricalDataDerivationV1": {
+          "cells": 84,
+          "encodedBytes": 11106,
+          "rows": 12
+        },
+        "HistoricalDocumentContentConversionReceiptV1": {
+          "cells": 21,
+          "encodedBytes": 517093,
+          "rows": 1
+        },
+        "HistoricalStructuralRawBatchV1": {
+          "cells": 7,
+          "encodedBytes": 36370,
+          "rows": 1
+        },
+        "HistoricalStructuralRawV1": {
+          "cells": 84,
+          "encodedBytes": 10065,
+          "rows": 12
+        },
+        "Permissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "RolePermissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Roles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Sessions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "SharedEntities": {
+          "cells": 12,
+          "encodedBytes": 95,
+          "rows": 2
+        },
+        "Tags": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "UploadedImages": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "UserRoles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Users": {
+          "cells": 18,
+          "encodedBytes": 78,
+          "rows": 2
+        },
+        "VerificationTokens": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "WebRTCAnswers": {
+          "cells": 6,
+          "encodedBytes": 54,
+          "rows": 1
+        },
+        "WebRTCOffers": {
+          "cells": 6,
+          "encodedBytes": 52,
+          "rows": 1
+        },
+        "__drizzle_migrations": {
+          "cells": 6,
+          "encodedBytes": 154,
+          "rows": 2
+        },
+        "sqlite_sequence": {
+          "cells": 8,
+          "encodedBytes": 61,
+          "rows": 4
+        }
+      },
+      "totalRows": 45,
+      "withinFixedBounds": true
+    },
+    "source": {
+      "encodedBytes": 253315,
+      "tables": {
+        "Accounts": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Analytics": {
+          "cells": 20,
+          "encodedBytes": 234,
+          "rows": 2
+        },
+        "CityCoordinates": {
+          "cells": 6,
+          "encodedBytes": 56,
+          "rows": 1
+        },
+        "Entities": {
+          "cells": 24,
+          "encodedBytes": 602,
+          "rows": 2
+        },
+        "HistoricalAdapterContinuationReceiptV1": {
+          "cells": 19,
+          "encodedBytes": 171363,
+          "rows": 1
+        },
+        "HistoricalDataAdapterReceiptV1": {
+          "cells": 13,
+          "encodedBytes": 23025,
+          "rows": 1
+        },
+        "HistoricalDataDerivationV1": {
+          "cells": 84,
+          "encodedBytes": 11106,
+          "rows": 12
+        },
+        "HistoricalStructuralRawBatchV1": {
+          "cells": 7,
+          "encodedBytes": 36370,
+          "rows": 1
+        },
+        "HistoricalStructuralRawV1": {
+          "cells": 84,
+          "encodedBytes": 10065,
+          "rows": 12
+        },
+        "Permissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "RolePermissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Roles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Sessions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "SharedEntities": {
+          "cells": 12,
+          "encodedBytes": 95,
+          "rows": 2
+        },
+        "UploadedImages": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "UserRoles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Users": {
+          "cells": 18,
+          "encodedBytes": 78,
+          "rows": 2
+        },
+        "VerificationTokens": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "WebRTCAnswers": {
+          "cells": 6,
+          "encodedBytes": 54,
+          "rows": 1
+        },
+        "WebRTCOffers": {
+          "cells": 6,
+          "encodedBytes": 52,
+          "rows": 1
+        },
+        "__drizzle_migrations": {
+          "cells": 6,
+          "encodedBytes": 154,
+          "rows": 2
+        },
+        "sqlite_sequence": {
+          "cells": 8,
+          "encodedBytes": 61,
+          "rows": 4
+        }
+      },
+      "totalRows": 44,
+      "withinFixedBounds": true
+    },
+    "targetWithEmptyNewReceipt": {
+      "encodedBytes": 253331,
+      "tables": {
+        "Accounts": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Analytics": {
+          "cells": 20,
+          "encodedBytes": 234,
+          "rows": 2
+        },
+        "CityCoordinates": {
+          "cells": 6,
+          "encodedBytes": 56,
+          "rows": 1
+        },
+        "Entities": {
+          "cells": 34,
+          "encodedBytes": 618,
+          "rows": 2
+        },
+        "EntityTags": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "HistoricalAdapterContinuationReceiptV1": {
+          "cells": 19,
+          "encodedBytes": 171363,
+          "rows": 1
+        },
+        "HistoricalDataAdapterReceiptV1": {
+          "cells": 13,
+          "encodedBytes": 23025,
+          "rows": 1
+        },
+        "HistoricalDataDerivationV1": {
+          "cells": 84,
+          "encodedBytes": 11106,
+          "rows": 12
+        },
+        "HistoricalDocumentContentConversionReceiptV1": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "HistoricalStructuralRawBatchV1": {
+          "cells": 7,
+          "encodedBytes": 36370,
+          "rows": 1
+        },
+        "HistoricalStructuralRawV1": {
+          "cells": 84,
+          "encodedBytes": 10065,
+          "rows": 12
+        },
+        "Permissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "RolePermissions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Roles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Sessions": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "SharedEntities": {
+          "cells": 12,
+          "encodedBytes": 95,
+          "rows": 2
+        },
+        "Tags": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "UploadedImages": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "UserRoles": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "Users": {
+          "cells": 18,
+          "encodedBytes": 78,
+          "rows": 2
+        },
+        "VerificationTokens": {
+          "cells": 0,
+          "encodedBytes": 0,
+          "rows": 0
+        },
+        "WebRTCAnswers": {
+          "cells": 6,
+          "encodedBytes": 54,
+          "rows": 1
+        },
+        "WebRTCOffers": {
+          "cells": 6,
+          "encodedBytes": 52,
+          "rows": 1
+        },
+        "__drizzle_migrations": {
+          "cells": 6,
+          "encodedBytes": 154,
+          "rows": 2
+        },
+        "sqlite_sequence": {
+          "cells": 8,
+          "encodedBytes": 61,
+          "rows": 4
+        }
+      },
+      "totalRows": 44,
+      "withinFixedBounds": true
+    }
+  },
+  "bounds": {
+    "byteAccounting": "Sum exact decoded TEXT/BLOB byte lengths, canonical INTEGER decimal byte lengths and 8 bytes per admitted REAL across full inspected state; NULL contributes zero. Complete source/target fixed oracles still required, so limits never admit new rows. Count entire old and new receipt payloads.",
+    "integerMaximumDecimal": "9007199254740991",
+    "integerMinimumDecimal": "-9007199254740991",
+    "maxEncodedBytes": 4194304,
+    "maxRowsPerTable": 32,
+    "maxTotalRows": 128,
+    "preparationCheck": "Independently calculate complete source, target-with-empty-receipt and completed-target sizes/counts under this rule before runtime. If a prescribed literal exceeds this fixed limit, retain mismatch and amend/review preparation explicitly before RED, never raise bounds at runtime.",
+    "realBinary64Allowlist": [
+      "4041c00000000000",
+      "4061700000000000"
+    ]
+  },
+  "completion": "Exact prepared completed target; zero writes future assertion, unexecuted",
+  "entry": "Exact accepted completed bb7 initial source including both prior receipts; no certified title edit accepted",
+  "production": "STOP",
+  "profileId": "synthetic-bb7-full-parent-document-content-v1",
+  "tail": "STOP",
+  "targetQualification": "Hybrid minimum modern content, not full modern0036",
+  "whole276291": "INCOMPLETE"
+}

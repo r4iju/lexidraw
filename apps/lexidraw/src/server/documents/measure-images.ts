@@ -1,5 +1,4 @@
 import { type NaturalSize, parseNaturalSize } from "@packages/lexical-nodes";
-import { probeImageSize } from "./image-probe";
 
 type Node = {
   type?: unknown;
@@ -37,7 +36,7 @@ const recentFailures = new Map<string, number>();
 export async function measureImages(
   elements: string,
   {
-    probe = probeImageSize,
+    probe = async (src) => (await import("./image-probe")).probeImageSize(src),
     limit = 8,
     failures = recentFailures,
     remember = 1000,

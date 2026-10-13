@@ -1,0 +1,1 @@
+CREATE TABLE LegacyDocumentConversionV1 (sourceSetId TEXT PRIMARY KEY NOT NULL, sourceIdentity TEXT NOT NULL UNIQUE, contractVersion INTEGER NOT NULL CHECK(contractVersion = 1), status TEXT NOT NULL CHECK(status = 'converted'), derivedFields BLOB NOT NULL, destinationValues BLOB NOT NULL);

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useId, useState } from "react";
-import { Controller, useForm, useFormContext, useWatch } from "react-hook-form";
+import { Controller, useForm, useFormContext } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import FormProvider, { RHFTextField } from "~/components/hook-form";
@@ -19,89 +19,23 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
-import { GEMINI_VOICES, geminiVoice } from "~/lib/gemini-voices";
-import { modelLabel } from "~/lib/model-label";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
-import {
-  defaultVoice,
-  languageMatters,
-  type SettingsInput,
-  savedTts,
-  TTS_DEFAULTS,
-  TTS_PROVIDERS,
-} from "./schema";
+import { type SettingsInput, TTS_DEFAULTS } from "./schema";
 
-type Mode = "chat" | "agent" | "autocomplete";
-type Policy = Pick<
-  RouterOutputs["adminLlm"]["policies"]["getDefaults"][number],
-  "provider" | "modelId" | "temperature" | "maxOutputTokens" | "allowedModels"
-> & { mode: string };
-type StoredOverride = {
-  provider?: string;
-  modelId?: string;
-  temperature?: number;
-  maxOutputTokens?: number;
-  enabled?: boolean;
-  reasoningEffort?: string;
-  verbosity?: string;
-};
-
-/** The select value that means "whatever the default is". */
-const DEFAULT = "default";
-
-const MODES: { mode: Mode; label: string; hint: string }[] = [
-  { mode: "chat", label: "Chat", hint: "Answers questions in the side panel." },
-  {
-    mode: "agent",
-    label: "Agent",
-    hint: "Edits your document when you ask it to.",
-  },
-  {
-    mode: "autocomplete",
-    label: "Autocomplete",
-    hint: "Suggests the rest of your sentence as you type.",
-  },
-];
-
-const TTS_PROVIDER_LABEL: Record<(typeof TTS_PROVIDERS)[number], string> = {
-  openai: "OpenAI",
-  google: "Google Gemini",
-  kokoro: "Kokoro (runs locally)",
-};
-
+type Policy = RouterOutputs["adminLlm"]["policies"]["getDefaults"][number];
 const THEMES = [
   { value: "system", label: "Match your device" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
 ] as const;
 
-const ModelValues = z.object({
-  model: z.string(),
-  temperature: z.number().min(0).max(1),
-  maxOutputTokens: z
-    .number({ error: "Enter a number." })
-    .int("Enter a whole number.")
-    .positive("Enter a number above 0."),
-});
-
 const FormValues = z.object({
   name: z.string().trim().min(1, "Enter your name."),
   email: z.email("Enter your email address."),
   autoSave: z.boolean(),
-  chat: ModelValues,
-  agent: ModelValues,
-  autocomplete: ModelValues.extend({
-    enabled: z.boolean(),
-    reasoningEffort: z.string(),
-    verbosity: z.string(),
-  }),
-  tts: z.object({
-    provider: z.string(),
-    voiceId: z.string(),
-    speed: z.number().min(0.25).max(4),
-    languageCode: z.string(),
-  }),
+  autocomplete: z.object({ enabled: z.boolean() }),
+  tts: z.object({ speed: z.number().min(0.25).max(4) }),
 });
 type FormValues = z.infer<typeof FormValues>;
 
@@ -115,102 +49,25 @@ type Props = {
   onSave: (settings: SettingsInput) => Promise<void>;
 };
 
-function modelValue(provider: string, modelId: string) {
-  return `${provider}:${modelId}`;
-}
-
-function storedOverrides(config: Props["user"]["config"], mode: Mode) {
-  const source =
-    mode === "autocomplete"
-      ? (config as { autocomplete?: unknown } | null)?.autocomplete
-      : (config?.llm as Record<string, unknown> | undefined)?.[mode];
-  return (source ?? {}) as StoredOverride;
-}
-
-function initialValues({ user, autoSave, policies }: Props): FormValues {
-  const policyFor = (mode: Mode) => policies.find((p) => p.mode === mode);
-  const model = (mode: Mode) => {
-    const stored = storedOverrides(user.config, mode);
-    const policy = policyFor(mode);
-    return {
-      model:
-        stored.provider && stored.modelId
-          ? modelValue(stored.provider, stored.modelId)
-          : DEFAULT,
-      temperature: stored.temperature ?? policy?.temperature ?? 0.5,
-      maxOutputTokens:
-        stored.maxOutputTokens ?? policy?.maxOutputTokens ?? 1000,
-    };
-  };
-  const autocomplete = storedOverrides(user.config, "autocomplete");
-  const tts = savedTts(user.config?.tts);
+function initialValues({ user, autoSave }: Props): FormValues {
   return {
     name: user.name ?? "",
     email: user.email ?? "",
     autoSave,
-    chat: model("chat"),
-    agent: model("agent"),
-    autocomplete: {
-      ...model("autocomplete"),
-      enabled: autocomplete.enabled !== false,
-      reasoningEffort: autocomplete.reasoningEffort ?? DEFAULT,
-      verbosity: autocomplete.verbosity ?? DEFAULT,
-    },
+    autocomplete: { enabled: user.config?.autocomplete?.enabled === true },
     tts: {
-      provider: tts.provider ?? DEFAULT,
-      voiceId: tts.voiceId ?? "",
-      speed: tts.speed ?? TTS_DEFAULTS.speed,
-      languageCode: tts.languageCode ?? "",
+      speed: user.config?.audio?.preferredPlaybackRate ?? TTS_DEFAULTS.speed,
     },
   };
 }
-
-/** What the form means for the server: anything left at its default is cleared. */
-function toSettings(values: FormValues, policies: Policy[]): SettingsInput {
-  const model = (mode: Mode) => {
-    const policy = policies.find((p) => p.mode === mode);
-    const { model, temperature, maxOutputTokens } = values[mode];
-    const split = model.indexOf(":");
-    const pinned = model !== DEFAULT && split > 0;
-    return {
-      provider: pinned ? model.slice(0, split) : null,
-      modelId: pinned ? model.slice(split + 1) : null,
-      temperature: temperature === policy?.temperature ? null : temperature,
-      maxOutputTokens:
-        maxOutputTokens === policy?.maxOutputTokens ? null : maxOutputTokens,
-    };
-  };
-  const { autocomplete, tts } = values;
-  const voiceId = tts.voiceId.trim();
-  const reader =
-    tts.provider === DEFAULT ? TTS_DEFAULTS.provider : tts.provider;
+function toSettings(values: FormValues): SettingsInput {
   return {
     name: values.name,
     email: values.email,
     autoSave: values.autoSave,
-    chat: model("chat"),
-    agent: model("agent"),
-    autocomplete: {
-      ...model("autocomplete"),
-      enabled: autocomplete.enabled,
-      reasoningEffort:
-        autocomplete.reasoningEffort === DEFAULT
-          ? null
-          : (autocomplete.reasoningEffort as "minimal" | "standard" | "heavy"),
-      verbosity:
-        autocomplete.verbosity === DEFAULT
-          ? null
-          : (autocomplete.verbosity as "low" | "medium" | "high"),
-    },
+    autocomplete: { enabled: values.autocomplete.enabled },
     tts: {
-      provider:
-        tts.provider === DEFAULT
-          ? null
-          : (tts.provider as (typeof TTS_PROVIDERS)[number]),
-      // A voice typed for another service stays behind when Gemini is picked.
-      voiceId: (reader === "google" ? geminiVoice(voiceId) : voiceId) || null,
-      speed: tts.speed === TTS_DEFAULTS.speed ? null : tts.speed,
-      languageCode: tts.languageCode.trim() || null,
+      speed: values.tts.speed === TTS_DEFAULTS.speed ? null : values.tts.speed,
     },
   };
 }
@@ -240,47 +97,6 @@ function Section({
       <p className="text-sm text-muted-foreground">{purpose}</p>
       <div className="mt-5 flex flex-col gap-4">{children}</div>
     </section>
-  );
-}
-
-function SelectField({
-  name,
-  label,
-  hint,
-  children,
-}: {
-  name: string;
-  label: string;
-  hint?: ReactNode;
-  children: ReactNode;
-}) {
-  const { control } = useFormContext();
-  const id = useId();
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Controller
-        name={name}
-        control={control}
-        render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger
-              id={id}
-              aria-label={label}
-              aria-describedby={hint ? `${id}-hint` : undefined}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>{children}</SelectContent>
-          </Select>
-        )}
-      />
-      {hint && (
-        <p id={`${id}-hint`} className="text-sm text-muted-foreground">
-          {hint}
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -372,89 +188,6 @@ function SwitchField({
   );
 }
 
-function ModelSettings({
-  mode,
-  label,
-  hint,
-  policy,
-}: {
-  mode: Mode;
-  label: string;
-  hint: string;
-  policy: Policy | undefined;
-}) {
-  const allowed = policy?.allowedModels ?? [];
-  return (
-    <fieldset className="flex flex-col gap-4 rounded-md border border-border p-4">
-      <legend className="px-1 text-sm font-semibold">{label}</legend>
-      <p className="-mt-2 text-sm text-muted-foreground">{hint}</p>
-      {mode === "autocomplete" && (
-        <SwitchField name="autocomplete.enabled" label="Suggest as you type" />
-      )}
-      <SelectField name={`${mode}.model`} label={`${label} model`}>
-        <SelectItem value={DEFAULT}>
-          {policy ? `Default (${modelLabel(policy.modelId)})` : "Default"}
-        </SelectItem>
-        {allowed.map((option) => (
-          <SelectItem
-            key={modelValue(option.provider, option.modelId)}
-            value={modelValue(option.provider, option.modelId)}
-          >
-            {modelLabel(option.modelId)}
-          </SelectItem>
-        ))}
-      </SelectField>
-      <details>
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-          Advanced
-        </summary>
-        <div className="mt-4 flex flex-col gap-4">
-          <SliderField
-            name={`${mode}.temperature`}
-            label="Creativity (temperature)"
-            min={0}
-            max={1}
-            step={0.05}
-            defaultValue={policy?.temperature ?? 0.5}
-          />
-          <RHFTextField
-            name={`${mode}.maxOutputTokens`}
-            label="Longest answer, in tokens"
-            type="number"
-            helperText={
-              policy
-                ? `Default ${policy.maxOutputTokens.toLocaleString("en-US")}.`
-                : undefined
-            }
-          />
-          {mode === "autocomplete" && (
-            <>
-              <SelectField
-                name="autocomplete.reasoningEffort"
-                label="Reasoning effort"
-              >
-                <SelectItem value={DEFAULT}>Default</SelectItem>
-                <SelectItem value="minimal">Minimal</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="heavy">Heavy</SelectItem>
-              </SelectField>
-              <SelectField
-                name="autocomplete.verbosity"
-                label="Suggestion length"
-              >
-                <SelectItem value={DEFAULT}>Default</SelectItem>
-                <SelectItem value="low">Short</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">Long</SelectItem>
-              </SelectField>
-            </>
-          )}
-        </div>
-      </details>
-    </fieldset>
-  );
-}
-
 function ThemeSelect() {
   const { theme, setTheme } = useTheme();
   const id = useId();
@@ -480,84 +213,8 @@ function ThemeSelect() {
   );
 }
 
-/** The language, asked for only by a service that reads by it. */
-function LanguageField() {
-  const chosen = useWatch<FormValues, "tts.provider">({ name: "tts.provider" });
-  const provider = chosen === DEFAULT ? TTS_DEFAULTS.provider : chosen;
-  if (!languageMatters(provider)) return null;
-  return (
-    <RHFTextField
-      name="tts.languageCode"
-      label="Language"
-      placeholder={`Default (${TTS_DEFAULTS.languageCode})`}
-      helperText="A language code, such as en-US or sv-SE."
-    />
-  );
-}
-
-/**
- * The voice, whose default follows the service and language chosen. Gemini's
- * voices are picked from its list; the others' are typed.
- */
-function VoiceField() {
-  const { control } = useFormContext<FormValues>();
-  const id = useId();
-  const [chosen, languageCode] = useWatch<
-    FormValues,
-    ["tts.provider", "tts.languageCode"]
-  >({ name: ["tts.provider", "tts.languageCode"] });
-  const provider = chosen === DEFAULT ? TTS_DEFAULTS.provider : chosen;
-  const voice = defaultVoice(
-    provider,
-    languageCode.trim() || TTS_DEFAULTS.languageCode,
-  );
-  if (provider !== "google") {
-    return (
-      <RHFTextField
-        name="tts.voiceId"
-        label="Voice"
-        placeholder={`Default (${voice})`}
-      />
-    );
-  }
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>Voice</Label>
-      <Controller
-        name="tts.voiceId"
-        control={control}
-        render={({ field }) => (
-          <Select
-            // A voice typed for another service is not one of Gemini's.
-            value={
-              GEMINI_VOICES.some((v) => v.name === field.value)
-                ? field.value
-                : DEFAULT
-            }
-            onValueChange={(value) =>
-              field.onChange(value === DEFAULT ? "" : value)
-            }
-          >
-            <SelectTrigger id={id} aria-label="Voice">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={DEFAULT}>Default ({voice})</SelectItem>
-              {GEMINI_VOICES.map((v) => (
-                <SelectItem key={v.name} value={v.name}>
-                  {v.name} — {v.character}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
-    </div>
-  );
-}
-
 export function SettingsForm(props: Props) {
-  const { policies, onSave } = props;
+  const { onSave } = props;
   const [saving, setSaving] = useState(false);
   const methods = useForm<FormValues>({
     resolver: standardSchemaResolver(FormValues),
@@ -573,7 +230,7 @@ export function SettingsForm(props: Props) {
   const submit = handleSubmit(async (values) => {
     setSaving(true);
     try {
-      await onSave(toSettings(values, policies));
+      await onSave(toSettings(values));
       reset(values);
     } catch {
       // The caller has said what went wrong; the changes stay to try again.
@@ -618,17 +275,20 @@ export function SettingsForm(props: Props) {
         <Section
           id="settings-ai"
           title="AI"
-          purpose="Which models help you write. Leave them on Default to get improvements as they ship."
+          purpose="One tuned experience powered by your account AI Power choice."
         >
-          {MODES.map(({ mode, label, hint }) => (
-            <ModelSettings
-              key={mode}
-              mode={mode}
-              label={label}
-              hint={hint}
-              policy={policies.find((p) => p.mode === mode)}
-            />
-          ))}
+          <SwitchField
+            name="autocomplete.enabled"
+            label="Writing suggestions"
+            hint="Opt in to short suggestions using your account AI power source. Pro usage is metered in aggregate. Accept explicitly; writing stays yours."
+          />
+          <Link href="#settings-ai-power">Manage AI Power</Link>
+          <p>
+            Cloud AI is changing to private Pro access or a key held on each
+            device. Built-in local capabilities remain free where supported.
+            Your documents, drawings and saved recordings are preserved. Pro is
+            Coming soon for public accounts.
+          </p>
         </Section>
 
         <Section
@@ -636,27 +296,20 @@ export function SettingsForm(props: Props) {
           title="Read aloud"
           purpose="The voice that reads documents and saved links to you."
         >
-          <SelectField name="tts.provider" label="Voice service">
-            <SelectItem value={DEFAULT}>
-              Default ({TTS_PROVIDER_LABEL[TTS_DEFAULTS.provider]})
-            </SelectItem>
-            {TTS_PROVIDERS.map((provider) => (
-              <SelectItem key={provider} value={provider}>
-                {TTS_PROVIDER_LABEL[provider]}
-              </SelectItem>
-            ))}
-          </SelectField>
-          <VoiceField />
+          <p>
+            Choose narration in AI Power. Saved recordings remain free to play,
+            including after credits run out. Built-in Apple voices are available
+            on iOS.
+          </p>
           <SliderField
             name="tts.speed"
-            label="Speed"
+            label="Saved playback speed"
             min={0.5}
             max={2}
             step={0.05}
             defaultValue={TTS_DEFAULTS.speed}
             format={(value) => `${value}×`}
           />
-          <LanguageField />
         </Section>
       </div>
 
@@ -673,7 +326,12 @@ export function SettingsForm(props: Props) {
 export function SettingsFormSection(props: Omit<Props, "onSave">) {
   const { update } = useSession();
   const utils = api.useUtils();
-  const save = api.auth.updateProfile.useMutation();
+  const save = api.auth.updateProfile.useMutation({
+    onSuccess: async () => {
+      await utils.auth.getProfile.invalidate();
+      await utils.config.invalidate();
+    },
+  });
   return (
     <SettingsForm
       {...props}

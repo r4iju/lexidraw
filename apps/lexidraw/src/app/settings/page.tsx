@@ -1,3 +1,5 @@
+import { AiPowerSection } from "./ai-power";
+import { powerPreference } from "~/lib/byok/preference";
 import { Suspense } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { offeredProviders } from "~/server/auth";
@@ -9,15 +11,22 @@ import { SettingsNav } from "./settings-nav";
 import { SignInMethodsSection } from "./sign-in-methods";
 
 async function SettingsContent() {
-  const [user, policies, autoSave, tokens, linked] = await Promise.all([
-    api.auth.getProfile.query(),
-    api.adminLlm.policies.getDefaults.query(),
-    api.config.getAutoSaveConfig.query(),
-    api.tokens.list.query(),
-    api.auth.signInProviders.query(),
-  ]);
+  const [user, policies, autoSave, tokens, linked, proStatus] =
+    await Promise.all([
+      api.auth.getProfile.query(),
+      api.adminLlm.policies.getDefaults.query(),
+      api.config.getAutoSaveConfig.query(),
+      api.tokens.list.query(),
+      api.auth.signInProviders.query(),
+      api.pro.status.query(),
+    ]);
   return (
     <>
+      <AiPowerSection
+        proStatus={proStatus}
+        accountId={user.id}
+        preference={powerPreference(user.config?.aiPower)}
+      />
       <SettingsFormSection
         user={user}
         policies={policies}

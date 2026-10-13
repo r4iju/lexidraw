@@ -1,344 +1,334 @@
 "use client";
-
+import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $isListItemNode } from "@lexical/list";
-import { $isHeadingNode } from "@lexical/rich-text";
-import { $findMatchingParent, mergeRegister } from "@lexical/utils";
 import {
-  $getSelection,
-  $isElementNode,
-  $isRangeSelection,
-  $isRootNode,
-  $isTextNode,
-  BLUR_COMMAND,
-  COMMAND_PRIORITY_LOW,
-  KEY_ARROW_RIGHT_COMMAND,
-  KEY_ESCAPE_COMMAND,
-  KEY_TAB_COMMAND,
-  type ElementNode,
-  type LexicalEditor,
-  type LexicalNode,
-  type NodeKey,
-} from "lexical";
-import { useEffect } from "react";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useEntityId } from "~/hooks/use-entity-id";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
-import { firstWord, normalizeCompletion, typedThrough } from "./completion";
-import { streamSuggestion } from "./stream-suggestion";
-
-/** How long typing must pause before a suggestion is asked for. */
-const DEFAULT_DELAY_MS = 300;
-/** Fewer characters in the block give the model too little to go on. */
-const MIN_BLOCK_CHARS = 3;
-const MAX_BEFORE_CHARS = 3000;
-const MAX_AFTER_CHARS = 600;
-const CACHE_SIZE = 50;
-const SWIPE_PX = 40;
-
-/** A caret a suggestion can follow: collapsed at the end of a text block. */
-type Target = {
-  textKey: NodeKey;
-  /** The block's text, which the suggestion continues. */
-  prefix: string;
-  /** The document up to the caret, and after its block, as the model reads it. */
-  before: string;
-  after: string;
-};
-
-type Shown = { textKey: NodeKey; prefix: string; suggestion: string };
-
-function $label(node: LexicalNode): string {
-  const text = node.getTextContent();
-  if ($isHeadingNode(node)) {
-    return `${"#".repeat(Number(node.getTag().slice(1)))} ${text}`;
-  }
-  if ($isListItemNode(node)) return `- ${text}`;
-  return text;
-}
-
-/** The blocks next to `block` and its ancestors, nearest first. */
-function $around(
-  block: ElementNode,
-  side: "before" | "after",
-  max: number,
-): string[] {
-  const next = (node: LexicalNode) =>
-    side === "before" ? node.getPreviousSibling() : node.getNextSibling();
-  const parts: string[] = [];
-  let size = 0;
-  for (
-    let node: LexicalNode | null = block;
-    node && !$isRootNode(node) && size < max;
-    node = node.getParent()
-  ) {
-    for (
-      let sibling = next(node);
-      sibling && size < max;
-      sibling = next(sibling)
-    ) {
-      const text = $label(sibling);
-      parts.push(text);
-      size += text.length + 1;
-    }
-  }
-  return parts;
-}
-
-function $target(): Target | null {
-  const selection = $getSelection();
-  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null;
-  const node = selection.anchor.getNode();
-  if (!$isTextNode(node) || !node.isSimpleText()) return null;
-  if (selection.anchor.offset !== node.getTextContentSize()) return null;
-  const block = $findMatchingParent(
-    node,
-    (n) => $isElementNode(n) && !n.isInline(),
-  );
-  if (!$isElementNode(block) || block.getLastDescendant() !== node) return null;
-
-  const prefix = block.getTextContent();
-  if (prefix.trim().length < MIN_BLOCK_CHARS) return null;
-  const before = [
-    ...$around(block, "before", MAX_BEFORE_CHARS).reverse(),
-    $label(block),
-  ].join("\n");
-  const after = $around(block, "after", MAX_AFTER_CHARS).join("\n");
-  return { textKey: node.getKey(), prefix, before, after };
-}
-
-type Options = { delayMs: number; title: string; entityId?: string };
-
-/**
- * Shows a suggestion after the caret once typing pauses at the end of a
- * block. It is drawn as a `data-suggestion` attribute on the caret's text, so
- * it never enters the document, its history, or a collaborator's view.
- */
-function registerAutocomplete(
-  editor: LexicalEditor,
-  { delayMs, title, entityId }: Options,
-): () => void {
-  let shown: Shown | null = null;
-  let painted: HTMLElement | null = null;
-  /** The caret last asked about, so an update that keeps it asks no again. */
-  let asked: Target | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let request: AbortController | null = null;
-  /** The prefix the user dismissed; nothing is suggested until it changes. */
-  let dismissed: string | null = null;
-  const cache = new Map<string, string>();
-
-  const paint = () => {
-    const element = shown ? editor.getElementByKey(shown.textKey) : null;
-    if (painted && painted !== element) {
-      painted.removeAttribute("data-suggestion");
-    }
-    if (element && shown)
-      element.setAttribute("data-suggestion", shown.suggestion);
-    painted = element;
-  };
-
-  const show = (target: Target, suggestion: string) => {
-    shown = suggestion
-      ? { textKey: target.textKey, prefix: target.prefix, suggestion }
-      : null;
-    paint();
-  };
-
-  const hide = () => {
-    shown = null;
-    paint();
-  };
-
-  const cancel = () => {
-    clearTimeout(timer);
-    request?.abort();
-    request = null;
-    asked = null;
-  };
-
-  const remember = (key: string, suggestion: string) => {
-    cache.delete(key);
-    cache.set(key, suggestion);
-    const oldest = cache.keys().next().value;
-    if (cache.size > CACHE_SIZE && oldest !== undefined) cache.delete(oldest);
-  };
-
-  const ask = (target: Target) => {
-    const controller = new AbortController();
-    request = controller;
-    let suggestion = "";
-    let complete = false;
-    streamSuggestion(
-      { title, before: target.before, after: target.after, entityId },
-      controller.signal,
-      (raw) => {
-        suggestion = normalizeCompletion(target.before, raw);
-        // The user may type into the suggestion while it streams.
-        const now = editor.getEditorState().read($target);
-        const rest =
-          now?.textKey !== target.textKey
-            ? null
-            : now.prefix === target.prefix
-              ? suggestion
-              : typedThrough({ prefix: target.prefix, suggestion }, now.prefix);
-        if (now === null || rest === null) {
-          controller.abort();
-          return;
-        }
-        show(now, rest);
-        // Only the first line is shown, so the rest is not worth waiting for.
-        if (/\S[^\n]*\n/.test(raw)) {
-          complete = true;
-          controller.abort();
-        }
-      },
-    )
-      .then(() => {
-        complete = true;
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) console.warn("[autocomplete]", error);
-      })
-      .finally(() => {
-        if (complete) remember(target.before, suggestion);
-        if (request === controller) request = null;
-      });
-  };
-
-  const onUpdate = () => {
-    if (editor.isComposing()) {
-      cancel();
-      hide();
-      return;
-    }
-    const target = editor.getEditorState().read($target);
-    if (!target) {
-      cancel();
-      hide();
-      return;
-    }
-    if (shown?.textKey === target.textKey) {
-      // Lexical may have redrawn the text without the attribute.
-      if (shown.prefix === target.prefix) return paint();
-      const rest = typedThrough(shown, target.prefix);
-      if (rest !== null) return show(target, rest);
-    }
-    if (asked?.textKey === target.textKey && asked.prefix === target.prefix) {
-      return;
-    }
-
-    cancel();
-    hide();
-    if (dismissed === target.prefix) return;
-    dismissed = null;
-    asked = target;
-    const cached = cache.get(target.before);
-    if (cached !== undefined) return show(target, cached);
-    timer = setTimeout(() => ask(target), delayMs);
-  };
-
-  /** Types `part` of the suggestion; the update that follows shows the rest. */
-  const accept = (part: (suggestion: string) => string): boolean => {
-    if (!shown) return false;
-    const { textKey, prefix, suggestion } = shown;
-    editor.update(() => {
-      const target = $target();
-      if (target?.textKey !== textKey || target.prefix !== prefix) return;
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) selection.insertText(part(suggestion));
-    });
-    return true;
-  };
-
-  const onAcceptKey =
-    (part: (suggestion: string) => string) =>
-    (event: KeyboardEvent | null): boolean => {
-      if (!shown) return false;
-      if (
-        event?.shiftKey ||
-        event?.altKey ||
-        event?.metaKey ||
-        event?.ctrlKey
-      ) {
-        return false;
-      }
-      event?.preventDefault();
-      return accept(part);
-    };
-
-  let touch: { x: number; y: number } | null = null;
-  const onTouchStart = (event: TouchEvent) => {
-    const point = event.changedTouches[0];
-    touch = point ? { x: point.clientX, y: point.clientY } : null;
-  };
-  const onTouchEnd = (event: TouchEvent) => {
-    const point = event.changedTouches[0];
-    if (!touch || !point) return;
-    const dx = point.clientX - touch.x;
-    const dy = point.clientY - touch.y;
-    touch = null;
-    if (dx > SWIPE_PX && dx > Math.abs(dy) && accept((s) => s)) {
-      event.preventDefault();
-    }
-  };
-
-  return mergeRegister(
-    editor.registerUpdateListener(onUpdate),
-    editor.registerCommand(
-      KEY_TAB_COMMAND,
-      onAcceptKey((s) => s),
-      COMMAND_PRIORITY_LOW,
-    ),
-    editor.registerCommand(
-      KEY_ARROW_RIGHT_COMMAND,
-      onAcceptKey(firstWord),
-      COMMAND_PRIORITY_LOW,
-    ),
-    editor.registerCommand(
-      KEY_ESCAPE_COMMAND,
-      (event) => {
-        if (!shown) return false;
-        dismissed = shown.prefix;
-        cancel();
-        hide();
-        event?.preventDefault();
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    ),
-    editor.registerCommand(
-      BLUR_COMMAND,
-      () => {
-        cancel();
-        hide();
-        return false;
-      },
-      COMMAND_PRIORITY_LOW,
-    ),
-    editor.registerRootListener((root, previous) => {
-      previous?.removeEventListener("touchstart", onTouchStart);
-      previous?.removeEventListener("touchend", onTouchEnd);
-      root?.addEventListener("touchstart", onTouchStart, { passive: true });
-      root?.addEventListener("touchend", onTouchEnd);
-    }),
-    () => {
-      cancel();
-      hide();
-    },
-  );
-}
+import { useSession } from "next-auth/react";
+import {
+  useBrowserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "~/lib/byok/browser-session";
+import { registerAutocomplete } from "./register";
+import {
+  createSuggestionSource,
+  suggestionRecovery,
+  refreshOwnedSuggestion,
+  type ProSuggestions,
+} from "./stream-suggestion";
 
 export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   const [editor] = useLexicalComposerContext();
   const entityId = useEntityId();
-  const { data: config } = api.config.getAutocompleteConfig.useQuery();
-  const enabled = config?.enabled !== false;
-  const delayMs = config?.delayMs ?? DEFAULT_DELAY_MS;
+  const utils = api.useUtils();
+  const config = api.config.getAutocompleteConfig.useQuery();
+  const power = api.auth.getPowerPreference.useQuery();
+  const allowance = api.pro.status.useQuery(undefined, {
+    enabled: power.data?.mode === "pro",
+    refetchInterval: 5000,
+  });
+  const save = api.config.updateAutocompleteConfig.useMutation({
+    onMutate: async (input) => {
+      await utils.config.getAutocompleteConfig.cancel();
+      if (!input.enabled)
+        utils.config.getAutocompleteConfig.setData(undefined, input);
+    },
+    onSettled: () => utils.config.getAutocompleteConfig.invalidate(),
+  });
+  const account = useSession();
+  const accountId =
+    account.status === "authenticated" ? account.data.user.id : undefined;
+  const session = useBrowserByok(accountId);
+  const generation = browserByokSessionGeneration();
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const proForOwner = useCallback(
+    (): ProSuggestions => ({
+      start: (input) => utils.client.pro.autocomplete.mutate(input),
+      recover: (input) => utils.client.pro.autocompleteRecovery.query(input),
+      read: (id) => utils.client.pro.operation.query({ id }),
+      cancel: (id) => utils.client.pro.cancel.mutate({ id }),
+      owner: {
+        id: JSON.stringify([origin, accountId, generation]),
+        current: () =>
+          !!accountId &&
+          browserByokAccount() === accountId &&
+          browserByokSessionGeneration() === generation &&
+          window.location.origin === origin,
+      },
+    }),
+    [utils, accountId, generation, origin],
+  );
+  const recovery =
+    accountId && session
+      ? suggestionRecovery(session, proForOwner())
+      : undefined;
+  const reference = useSyncExternalStore(
+    session?.subscribe ?? (() => () => {}),
+    session?.reference ?? (() => undefined),
+    () => undefined,
+  );
+  const enabled = config.data?.enabled === true;
+  const powerAccess = queryAccess(power, true, "AI power preference");
+  const configAccess = queryAccess(config, true, "Suggestion settings");
+  const preference =
+    powerAccess.kind === "ready" ? powerAccess.data : undefined;
+  const access = queryAccess(
+    allowance,
+    preference?.mode === "pro",
+    "Pro suggestion allowance",
+  );
+  const unavailable =
+    access.kind === "error" || access.kind === "loading"
+      ? access.message
+      : preference?.mode === "local"
+        ? "Local suggestions are unavailable in this browser."
+        : preference?.mode === "byok" && !reference
+          ? "Set up your key on this device in AI Power."
+          : preference?.mode === "pro" && !allowance.data?.entitled
+            ? "Pro Coming soon. Private allowance required."
+            : preference?.mode === "pro" &&
+                allowance.data &&
+                allowance.data.availableSubcredits < 1_120_000
+              ? "Not enough allowance for another suggestion. Check AI Power."
+              : "";
 
+  const provider =
+    preference?.mode === "byok" ? preference.provider : undefined;
+  const registrationScope = useMemo(
+    () => ({
+      editor,
+      entityId,
+      title,
+      accountId,
+      generation,
+      session,
+      source: preference?.mode,
+      provider,
+      reference,
+    }),
+    [
+      editor,
+      entityId,
+      title,
+      accountId,
+      generation,
+      session,
+      preference?.mode,
+      provider,
+      reference,
+    ],
+  );
+  const recoveryScope = useMemo(
+    () => ({ accountId, generation, session }),
+    [accountId, generation, session],
+  );
+  const [notice, setNotice] = useState<{
+    scope: typeof registrationScope;
+    message: string;
+  } | null>(null);
+  const [ownedNotice, setOwnedNotice] = useState<{
+    scope: typeof recoveryScope;
+    message: string;
+  } | null>(null);
+  const message = notice?.scope === registrationScope ? notice.message : "";
+  const ownedMessage =
+    ownedNotice?.scope === recoveryScope ? ownedNotice.message : "";
+
+  const recoveryMessage =
+    ownedMessage ||
+    (recovery?.pending
+      ? recovery.pending.kind === "acceptanceUncertain"
+        ? "Owned suggestion acceptance is unconfirmed. Refresh its original request."
+        : "An owned suggestion requires reconciliation; credits may remain reserved. Refresh or cancel its original request."
+      : "");
+
+  // Lexical owns caret changes, composition, request cancellation and suggestion painting.
   useEffect(() => {
-    if (!enabled) return;
-    return registerAutocomplete(editor, { delayMs, title, entityId });
-  }, [editor, enabled, delayMs, title, entityId]);
+    if (
+      !accountId ||
+      !session ||
+      !enabled ||
+      save.isPending ||
+      save.error ||
+      config.error ||
+      power.error ||
+      !preference ||
+      unavailable ||
+      (preference.mode === "byok" && !reference)
+    )
+      return;
+    let disposed = false;
+    const setMessage = (message: string) => {
+      if (!disposed) setNotice({ scope: registrationScope, message });
+    };
+    const source = createSuggestionSource(
+      preference,
+      session,
+      proForOwner(),
+      (state) => {
+        if (disposed) return;
+        setMessage(
+          state === "acceptanceUncertain"
+            ? "Suggestion acceptance is unconfirmed. Refresh the original request before another paid suggestion."
+            : state === "cancellationUnconfirmed"
+              ? "Cancellation is unconfirmed. Refresh owned suggestion status."
+              : state === "unknown"
+                ? "A suggestion is reconciling; credits remain reserved."
+                : "",
+        );
+        void utils.pro.status.invalidate();
+      },
+    );
+    const unregister = registerAutocomplete(editor, {
+      title,
+      entityId,
+      delayMs: 600,
+      suggest: async (input, signal) => {
+        try {
+          return await source(input, signal);
+        } catch (error) {
+          if (!disposed && !signal.aborted)
+            setMessage(
+              error instanceof Error
+                ? error.message
+                : "Suggestion unavailable.",
+            );
+          throw error;
+        }
+      },
+    });
+    return () => {
+      disposed = true;
+      unregister();
+    };
+  }, [
+    registrationScope,
+    editor,
+    accountId,
+    proForOwner,
+    enabled,
+    save.isPending,
+    save.error,
+    config.error,
+    power.error,
+    preference,
+    unavailable,
+    session,
+    reference,
+    title,
+    entityId,
+    utils,
+  ]);
 
-  return null;
+  return (
+    <div
+      className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs"
+      contentEditable={false}
+    >
+      <Checkbox
+        id="writing-suggestions"
+        checked={enabled}
+        disabled={config.isPending || save.isPending}
+        onCheckedChange={(checked) =>
+          save.mutate({ enabled: checked === true })
+        }
+      />
+      <Label htmlFor="writing-suggestions">Writing suggestions</Label>
+      <QueryNotice access={powerAccess} retry={() => void power.refetch()} />
+      <QueryNotice access={configAccess} retry={() => void config.refetch()} />
+      <QueryNotice access={access} retry={() => void allowance.refetch()} />
+      <span role="status">
+        {powerAccess.kind !== "ready" || configAccess.kind !== "ready"
+          ? "Suggestions paused until settings are available."
+          : save.error
+            ? "Suggestions unavailable. Check AI Power."
+            : !enabled
+              ? "Off · opt in to use your AI power source"
+              : unavailable || message || "On · accept with Tab"}
+      </span>
+      {recoveryMessage && <span role="status">{recoveryMessage}</span>}
+      {accountId && recovery?.pending && (
+        <>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              if (!session) return;
+              const setMessage = (message: string) =>
+                setOwnedNotice({ scope: recoveryScope, message });
+              void refreshOwnedSuggestion(session, proForOwner())
+                .then((operation) => {
+                  setMessage(
+                    operation?.state === "unknown"
+                      ? "A suggestion is reconciling; credits remain reserved."
+                      : "Owned suggestion status refreshed.",
+                  );
+                  void utils.pro.status.invalidate();
+                })
+                .catch(() =>
+                  setMessage(
+                    "Suggestion acceptance or status is still unconfirmed. Retry the owned read.",
+                  ),
+                );
+            }}
+          >
+            Refresh owned suggestion
+          </Button>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              if (!session) return;
+              const setMessage = (message: string) =>
+                setOwnedNotice({ scope: recoveryScope, message });
+              void refreshOwnedSuggestion(session, proForOwner(), true)
+                .then((operation) => {
+                  setMessage(
+                    operation &&
+                      ["reserved", "running", "unknown"].includes(
+                        operation.state,
+                      )
+                      ? "Cancellation is unconfirmed; credits remain reserved."
+                      : "Suggestion stopped.",
+                  );
+                  void utils.pro.status.invalidate();
+                })
+                .catch(() =>
+                  setMessage(
+                    "Cancellation is unconfirmed. Retry the owned read or cancellation.",
+                  ),
+                );
+            }}
+          >
+            Cancel owned suggestion
+          </Button>
+        </>
+      )}
+      {enabled && preference?.mode === "pro" && allowance.data && (
+        <span>
+          {(allowance.data.availableSubcredits / 1_000_000).toFixed(3)} credits
+          available ·{" "}
+          {(allowance.data.reservedSubcredits / 1_000_000).toFixed(3)} reserved
+          ·{" "}
+          {(
+            allowance.data.history
+              .filter((item) => item.feature === "autocomplete")
+              .reduce((sum, item) => sum + item.charged, 0) / 1_000_000
+          ).toFixed(3)}{" "}
+          suggestion credits in recent usage
+        </span>
+      )}
+    </div>
+  );
 }

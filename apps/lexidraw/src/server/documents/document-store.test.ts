@@ -1,12 +1,12 @@
 /// <reference types="bun" />
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import { createClient } from "@libsql/client";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { createClient } from "@libsql/client/sqlite3";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { PublicAccess } from "@packages/types";
 import type { DocumentStore } from "./write";
 import { drizzleDocumentStore } from "./document-store";
-import * as imageProbe from "./image-probe";
+import { measureImages } from "./measure-images";
 
 // The Entities columns as `schema.entities` declares them, without the
 // foreign keys, so the table stands on its own in memory.
@@ -52,6 +52,17 @@ const CREATE_ENTITY_TAGS = `
   )
 `;
 
+const BEFORE =
+  '{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"before","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+const AFTER =
+  '{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"after","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+const AGAIN =
+  '{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"again","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+const ONE =
+  '{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"one","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+const TWO =
+  '{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"two","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+
 const AT = new Date("2026-09-23T10:00:00.000Z");
 
 /** The write, for the cases where losing the race is itself the failure. */
@@ -71,7 +82,7 @@ async function seed(row: { id: string; updatedAt: Date; deletedAt?: Date }) {
   await db.insert(schema.entities).values({
     id: row.id,
     title: "Doc",
-    elements: "before",
+    elements: BEFORE,
     entityType: "document",
     createdAt: AT,
     updatedAt: row.updatedAt,
@@ -89,17 +100,13 @@ beforeEach(async () => {
   db = drizzle(client, { schema });
 });
 
-afterEach(() => {
-  (imageProbe.probeImageSize as { mockRestore?: () => void }).mockRestore?.();
-});
-
 describe("drizzleDocumentStore", () => {
   test("a written document's outside pictures are stored with their size", async () => {
     await seed({ id: "doc_1", updatedAt: AT });
-    const probe = spyOn(imageProbe, "probeImageSize").mockImplementation(
-      async () => ({ width: 1200, height: 1500 }),
-    );
-    const store = drizzleDocumentStore(db, "user_1");
+    const probe = mock(async (_src: string) => ({ width: 1200, height: 1500 }));
+    const store = drizzleDocumentStore(db, "user_1", undefined, {
+      prepareRoot: (elements) => measureImages(elements, { probe }),
+    });
     const image = {
       type: "image",
       version: 1,
@@ -129,7 +136,9 @@ describe("drizzleDocumentStore", () => {
     await seed({ id: "doc_2", updatedAt: AT, deletedAt: new Date() });
     const store = drizzleDocumentStore(db, "user_1");
 
-    expect(await store.read("doc_1")).toMatchObject({ elements: "before" });
+    expect(await store.read("doc_1")).toMatchObject({
+      elements: BEFORE,
+    });
     expect(await store.read("doc_2")).toBeNull();
     expect(await store.read("doc_3")).toBeNull();
   });
@@ -138,7 +147,7 @@ describe("drizzleDocumentStore", () => {
     await seed({ id: "doc_1", updatedAt: AT });
     const store = drizzleDocumentStore(db, "user_1");
 
-    const written = await mustWrite(store, "after", AT);
+    const written = await mustWrite(store, AFTER, AT);
 
     expect(written.id).toBe("doc_1");
     expect(written.updatedAt).toBeInstanceOf(Date);
@@ -146,7 +155,7 @@ describe("drizzleDocumentStore", () => {
     expect(await store.read("doc_1")).toEqual({
       id: "doc_1",
       title: "Doc",
-      elements: "after",
+      elements: AFTER,
       updatedAt: written.updatedAt,
       appState: null,
       tags: [],
@@ -159,8 +168,8 @@ describe("drizzleDocumentStore", () => {
     await seed({ id: "doc_1", updatedAt: now });
     const store = drizzleDocumentStore(db, "user_1");
 
-    const first = await mustWrite(store, "one", now);
-    const second = await mustWrite(store, "two", first.updatedAt);
+    const first = await mustWrite(store, ONE, now);
+    const second = await mustWrite(store, TWO, first.updatedAt);
 
     expect(first.updatedAt.getTime()).toBeGreaterThan(now.getTime());
     expect(second.updatedAt.getTime()).toBeGreaterThan(
@@ -174,7 +183,9 @@ describe("drizzleDocumentStore", () => {
 
     const written = await store.write(
       "doc_1",
-      { elements: "after" },
+      {
+        elements: AFTER,
+      },
       new Date("2026-01-01T00:00:00.000Z"),
     );
 
@@ -182,7 +193,7 @@ describe("drizzleDocumentStore", () => {
     expect(await store.read("doc_1")).toEqual({
       id: "doc_1",
       title: "Doc",
-      elements: "before",
+      elements: BEFORE,
       updatedAt: AT,
       appState: null,
       tags: [],
@@ -193,9 +204,17 @@ describe("drizzleDocumentStore", () => {
     await seed({ id: "doc_1", updatedAt: AT, deletedAt: new Date() });
     const store = drizzleDocumentStore(db, "user_1");
 
-    expect(await store.write("doc_1", { elements: "after" }, AT)).toBeNull();
+    expect(
+      await store.write(
+        "doc_1",
+        {
+          elements: AFTER,
+        },
+        AT,
+      ),
+    ).toBeNull();
     const rows = await db.select().from(schema.entities);
-    expect(rows[0]?.elements).toBe("before");
+    expect(rows[0]?.elements).toBe(BEFORE);
   });
 
   test("a write sets the title, the settings and the writer's tags it carries", async () => {
@@ -205,7 +224,7 @@ describe("drizzleDocumentStore", () => {
     const written = await store.write(
       "doc_1",
       {
-        elements: "after",
+        elements: AFTER,
         title: "Kyoto in Autumn",
         appState: '{"lang":"ja"}',
         tags: ["travel", "japan"],
@@ -216,14 +235,17 @@ describe("drizzleDocumentStore", () => {
     expect(await store.read("doc_1")).toEqual({
       id: "doc_1",
       title: "Kyoto in Autumn",
-      elements: "after",
+      elements: AFTER,
       updatedAt: written?.updatedAt ?? AT,
       appState: '{"lang":"ja"}',
       tags: ["japan", "travel"],
     });
     const next = await store.write(
       "doc_1",
-      { elements: "again", tags: ["japan"] },
+      {
+        elements: AGAIN,
+        tags: ["japan"],
+      },
       written?.updatedAt ?? AT,
     );
     expect(next).not.toBeNull();

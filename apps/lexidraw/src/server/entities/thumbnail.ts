@@ -1,6 +1,15 @@
 import { del } from "@vercel/blob";
 import env from "@packages/env";
-import { type drizzle, and, eq, inArray, or, schema } from "@packages/drizzle";
+import {
+  type drizzle,
+  and,
+  eq,
+  inArray,
+  or,
+  schema,
+  type SQL,
+} from "@packages/drizzle";
+import { nextThumbnailRevision } from "./thumbnail-revision";
 
 type Db = typeof drizzle;
 type Shots = { light?: string; dark?: string };
@@ -129,17 +138,17 @@ export function blobErrorCode(error: unknown): string {
 
 /**
  * The columns a write of an entity's thumbnail sets. `thumbnailUpdatedAt`
- * says when the picture was stored, and none of them moves `updatedAt`, which
+ * advances with every write, and none of them moves `updatedAt`, which
  * is the content's revision.
  */
 function thumbnailColumns(shots: Shots): {
   screenShotLight?: string;
   screenShotDark?: string;
-  thumbnailUpdatedAt: Date;
+  thumbnailUpdatedAt: SQL;
 } {
   return {
     ...(shots.light === undefined ? {} : { screenShotLight: shots.light }),
     ...(shots.dark === undefined ? {} : { screenShotDark: shots.dark }),
-    thumbnailUpdatedAt: new Date(),
+    thumbnailUpdatedAt: nextThumbnailRevision(),
   };
 }

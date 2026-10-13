@@ -31,6 +31,20 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["**/src/**/*"],
-  "exclude": ["node_modules", "dist", "drizzle.config.ts", "migrate.ts"]
+  "files": [
+    "src/generation/retention-archive-contract.json",
+    "src/migrations/atomic-modern-destination-v1.json",
+    "src/migrations/cached-modern-destination-v1.json",
+    "src/migrations/full-parent-content-destination-v1.json",
+    "src/migrations/fixtures/historical-prefix-v1/contract.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/source-completed-checkpoint-oracle.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/target-checkpoint-typed-oracle.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/target-ddl.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/transform-manifest.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/continuation-receipt-oracle.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/certified-later-edit.json",
+    "src/migrations/fixtures/historical-adapter-checkpoint-v1/finite-profile.json"
+  ],
+  "include": ["src/**/*.ts"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/*-test-support.ts"]
 }

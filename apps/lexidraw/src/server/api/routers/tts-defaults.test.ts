@@ -131,20 +131,16 @@ describe.each([
   ],
 ])("read-aloud for an account %s", (_, userId, voice) => {
   test.each(Object.entries(listens))(
-    "reads %s in the default voice its settings show",
+    "preserves %s legacy voice metadata without authorizing new synthesis",
     async (_, listen) => {
       const shown = await configRouter
         .createCaller(contextOf(userId))
         .getTtsConfig();
       started.length = 0;
 
-      await listen(userId);
+      await expect(listen(userId)).rejects.toThrow("Coming soon");
 
-      const cfg = started[0]?.at(-2) as { provider: string; voiceId: string };
-      expect({ provider: cfg?.provider, voiceId: cfg?.voiceId }).toEqual({
-        provider: shown.provider,
-        voiceId: shown.voiceId,
-      });
+      expect(started).toEqual([]);
       expect(shown).toMatchObject(voice);
     },
   );
@@ -152,39 +148,37 @@ describe.each([
 
 describe("read-aloud in Gemini for an account that asked for Ogg", () => {
   test.each(Object.entries(listens))(
-    "reads %s in MP3, as its settings show",
+    "retains MP3 metadata for %s while generation is unavailable",
     async (_, listen) => {
       const shown = await configRouter
         .createCaller(contextOf(GEMINI_OGG))
         .getTtsConfig();
       started.length = 0;
 
-      await listen(GEMINI_OGG);
+      await expect(listen(GEMINI_OGG)).rejects.toThrow("Coming soon");
 
-      const cfg = started[0]?.at(-2) as { format: string };
-      expect({ shown: shown.format, read: cfg?.format }).toEqual({
-        shown: "mp3",
-        read: "mp3",
-      });
+      expect(shown.format).toBe("mp3");
+      expect(started).toEqual([]);
     },
   );
 
-  test("reads in MP3 when a player asks for Ogg", async () => {
+  test("rejects new legacy generation even when a player asks for Ogg", async () => {
     started.length = 0;
 
-    await ttsRouter.createCaller(contextOf(NEW)).startDocumentTts({
-      documentId: `${NEW}_ogg_doc`,
-      markdown: "Hello again.",
-      format: "ogg",
-    });
+    await expect(
+      ttsRouter.createCaller(contextOf(NEW)).startDocumentTts({
+        documentId: `${NEW}_ogg_doc`,
+        markdown: "Hello again.",
+        format: "ogg",
+      }),
+    ).rejects.toThrow("Coming soon");
 
-    const cfg = started[0]?.at(-2) as { format: string };
-    expect(cfg?.format).toBe("mp3");
+    expect(started).toEqual([]);
   });
 });
 
 describe("read-aloud in Gemini, which tells languages apart itself", () => {
-  test("keeps the audio made when only the language changes", async () => {
+  test("language changes cannot restart legacy paid generation", async () => {
     const read = (languageCode: string) =>
       ttsRouter.createCaller(contextOf(NEW)).startDocumentTts({
         documentId: `${NEW}_lang_doc`,
@@ -193,10 +187,8 @@ describe("read-aloud in Gemini, which tells languages apart itself", () => {
       });
     started.length = 0;
 
-    const first = await read("en-US");
-    const second = await read("sv-SE");
-
-    expect(second.docKey).toBe(first.docKey);
-    expect(started).toHaveLength(1);
+    await expect(read("en-US")).rejects.toThrow("Coming soon");
+    await expect(read("sv-SE")).rejects.toThrow("Coming soon");
+    expect(started).toEqual([]);
   });
 });

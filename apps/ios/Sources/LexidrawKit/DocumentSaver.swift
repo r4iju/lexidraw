@@ -1,6 +1,20 @@
 import Foundation
 import LexidrawJSON
 
+public struct DocumentSaveReceipt: Sendable {
+  public let document: String
+  public let revision: Date
+  public let state: JSONValue
+  public func containsImage(_ url: URL) -> Bool {
+    Self.imageCount(state["root"], url: url) == 1
+  }
+  public static func imageCount(_ node: JSONValue?, url: URL) -> Int {
+    guard let node else { return 0 }
+    let own = node["type"]?.stringValue == "image" && node["src"]?.stringValue == url.absoluteString ? 1 : 0
+    return own + (node["children"]?.arrayValue ?? []).reduce(0) { $0 + imageCount($1, url: url) }
+  }
+}
+
 /// Defers serialization until edits pause and saves one revision at a time.
 /// A conflict keeps the pending state available without overwriting theirs.
 public actor DocumentSaver {
@@ -15,6 +29,7 @@ public actor DocumentSaver {
   private var id: String
   private var revision: Date
   private let pause: @Sendable () async throws -> Void
+  private var receipt: DocumentSaveReceipt?
   private var pending: Snapshot?
   private var waiting: Task<Void, Never>?
   private var saving: Task<Void, Never>?
@@ -43,6 +58,7 @@ public actor DocumentSaver {
 
   public func changed(_ snapshot: @escaping Snapshot) {
     generation += 1
+    receipt = nil
     pending = snapshot
     waiting?.cancel()
     guard !conflicted else { return }
@@ -56,11 +72,11 @@ public actor DocumentSaver {
     }
   }
 
-  public func saveNow() async {
+  @discardableResult public func saveNow() async -> DocumentSaveReceipt? {
     waiting?.cancel()
     waiting = nil
     while let saving { await saving.value }
-    guard !conflicted, let snapshot = pending else { return }
+    guard !conflicted, let snapshot = pending else { return status == .saved ? receipt : nil }
     pending = nil
     set(.saving)
     let task = Task {
@@ -69,6 +85,7 @@ public actor DocumentSaver {
     }
     saving = task
     await task.value
+    return status == .saved ? receipt : nil
   }
 
   /// Saves to a new file at Home, never over the newer revision. A partially
@@ -109,6 +126,7 @@ public actor DocumentSaver {
     do {
       let state = try await snapshot()
       revision = try await session.save(document: id, state: state, ifUnmodifiedSince: revision)
+      receipt = DocumentSaveReceipt(document: id, revision: revision, state: state)
       set(pending == nil ? .saved : .unsaved)
     } catch {
       if pending == nil { pending = snapshot }
