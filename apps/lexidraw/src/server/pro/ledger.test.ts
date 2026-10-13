@@ -326,3 +326,39 @@ test("provider invoice reconciliation is owner-audited and does not rewrite cust
     "provider_cost_reconciled",
   );
 });
+
+test("actual invoice above admitted exposure is recorded without charging customer overages and fences new paid attempts", async () => {
+  const f = await entitled();
+  const op = await f.ledger.reserve("alice", "invoice-overrun", "h");
+  await f.ledger.claim(op.id);
+  const attempt = await f.ledger.startAttempt(op.id);
+  await f.ledger.finishAttempt(attempt, { kind: "unknown" });
+  await f.ledger.reconcile(
+    "owner",
+    op.id,
+    {
+      kind: "completed",
+      text: "recovered",
+      usage: { input: 1, cachedInput: 0, output: 1 },
+    },
+    "confirmed response identifier",
+  );
+  await f.ledger.reconcileAttemptCost(
+    "owner",
+    attempt,
+    10_000_000,
+    "verified invoice exceeds supplier quote",
+  );
+  expect(await f.reopen().status("alice")).toMatchObject({
+    availableSubcredits: 999_998_250,
+    providerCosts: { knownNanoUsd: 10_000_000, unknownExposureNanoUsd: 0 },
+  });
+  expect((await f.reopen().audit("owner")).at(-1)?.action).toBe(
+    "provider_cost_overrun",
+  );
+  const next = await f.ledger.reserve("alice", "after-invoice-overrun", "h2");
+  await f.ledger.claim(next.id);
+  await expect(f.ledger.startAttempt(next.id)).rejects.toThrow(
+    "Supplier exposure exceeded",
+  );
+});

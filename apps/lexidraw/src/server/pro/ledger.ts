@@ -2060,11 +2060,11 @@ export class ProLedger {
         const cost = a.cost_nano_usd;
         if (
           cost !== null &&
-          (!Number.isSafeInteger(Number(cost)) ||
-            Number(cost) < 0 ||
-            Number(cost) > Number(a.exposure_nano_usd))
+          (!Number.isSafeInteger(Number(cost)) || Number(cost) < 0)
         )
           throw new ProError("Corrupt historical supplier cost");
+        if (cost !== null && Number(cost) > Number(a.exposure_nano_usd))
+          throw new ProError("Supplier exposure exceeded");
       }
       const accountSpend = (
         await tx.execute({
@@ -2421,8 +2421,6 @@ export class ProLedger {
           "Resolve provider outcome before reconciling invoice cost",
         );
       await this.contractForAttempt(tx, attempt, true);
-      if (costNanoUsd > Number(attempt.exposure_nano_usd))
-        throw new ProError("Invoice exceeds admitted supplier exposure");
       await tx.execute({
         sql: "UPDATE pro_attempts SET cost_nano_usd=? WHERE id=?",
         args: [costNanoUsd, attemptId],
@@ -2431,7 +2429,9 @@ export class ProLedger {
         tx,
         actor,
         String(attempt.account_id),
-        "provider_cost_reconciled",
+        costNanoUsd > Number(attempt.exposure_nano_usd)
+          ? "provider_cost_overrun"
+          : "provider_cost_reconciled",
         `${attemptId}: ${costNanoUsd} nano-USD; ${evidence}`,
       );
     });
