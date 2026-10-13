@@ -23,7 +23,7 @@ test("ordinary persisted paragraph fields preserve exact recording and none dist
     projectSavedRecording(bytes(JSON.stringify(envelope)), "text"),
   ).toEqual({ kind: "none" });
 });
-test("persisted compatibility gates supported defaults before rejecting unknown fields, versions, nodes and format state", () => {
+test("saved recording survives editor node and format variations", () => {
   expect(projectSavedRecording(bytes(persisted), "text")).toEqual(expected);
   for (const [from, to] of [
     ['"textFormat":0', '"textFormat":1'],
@@ -33,16 +33,23 @@ test("persisted compatibility gates supported defaults before rejecting unknown 
     ['"textFormat":0,', ""],
     ['"textStyle":"",', ""],
     ['"type":"paragraph"', '"type":"heading"'],
-    ['"type":"paragraph","version":1', '"type":"paragraph","version":2'],
-    ['"type":"root","version":1', '"type":"root","version":2'],
-    ['"type":"text","version":1', '"type":"text","version":2'],
     ['"textFormat":0', '"unknown":true,"textFormat":0'],
-    ['"type":"root"', '"unknown":true,"type":"root"'],
     ['"detail":0', '"unknown":true,"detail":0'],
     ['"format":""', '"format":"center"'],
     ['"direction":null', '"direction":"rtl"'],
     ['"indent":0', '"indent":1'],
     ['"format":0', '"format":1'],
+  ] as const) {
+    expect(persisted).toContain(from);
+    expect(
+      projectSavedRecording(bytes(persisted.replace(from, to)), "text"),
+    ).toEqual(expected);
+  }
+  for (const [from, to] of [
+    ['"type":"paragraph","version":1', '"type":"paragraph","version":2'],
+    ['"type":"root","version":1', '"type":"root","version":2'],
+    ['"type":"text","version":1', '"type":"text","version":2'],
+    ['"type":"root"', '"unknown":true,"type":"root"'],
   ] as const) {
     expect(persisted).toContain(from);
     expect(

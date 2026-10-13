@@ -26,9 +26,17 @@ test("projects only original saved text and URL without changing source bytes", 
   expect(projectSavedRecording(valid.buffer, "text")).toEqual(expected);
   expect(projectSavedRecording(valid, "text")).toEqual(expected);
   expect(valid).toEqual(before);
+  const textDetail = bytes(
+    new TextDecoder().decode(valid).replace('"detail":0', '"detail":1'),
+  );
+  expect(projectSavedRecording(textDetail, "text")).toEqual(expected);
 });
 test("no recording means a supported full document without tts, never an unsupported root", () => {
   expect(projectSavedRecording(none, "text")).toEqual({ kind: "none" });
+  const emptyRoot = bytes(
+    '{"root":{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1}}',
+  );
+  expect(projectSavedRecording(emptyRoot, "text")).toEqual({ kind: "none" });
   expect(projectSavedRecording(fixture("unsupported-version"), "text")).toEqual(
     { kind: "stop", reason: "unsupported-payload" },
   );
@@ -101,16 +109,6 @@ for (const [label, raw] of [
       new TextDecoder()
         .decode(valid)
         .replace('"type":"text","version":1', '"type":"text","version":2'),
-    ),
-  ],
-  [
-    "node fields",
-    bytes(new TextDecoder().decode(valid).replace('"detail":0', '"detail":1')),
-  ],
-  [
-    "empty root",
-    bytes(
-      '{"root":{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1}}',
     ),
   ],
 ] as const)
