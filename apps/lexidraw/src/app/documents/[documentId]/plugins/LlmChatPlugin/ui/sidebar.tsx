@@ -5,6 +5,7 @@ import type React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
 import { ChatComposer } from "./chat-composer";
+import { OwnedChatRecovery } from "~/lib/generation/chat-recovery";
 import { Reset } from "./reset";
 import { useChatState } from "../llm-chat-context";
 import { DebugPanel } from "./debug-panel";
@@ -35,6 +36,7 @@ export const Sidebar: React.FC = () => {
       {mode === "chat" && (
         <>
           <MessageList />
+          <OwnedChatRecovery documentId={documentId} />
           <ChatComposer send={send} />
           <Link className="p-3" href="/settings#settings-ai-power">
             Manage AI Power

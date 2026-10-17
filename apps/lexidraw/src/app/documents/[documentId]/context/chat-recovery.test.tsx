@@ -10,6 +10,7 @@ const owned = {
   charged: 0,
   quote: 1792000,
 };
+let operations = [owned];
 const read = mock(async () => {});
 const cancel = mock(async () => owned);
 mock.module("next-auth/react", () => ({
@@ -44,7 +45,7 @@ mock.module("~/trpc/react", () => ({
       },
       chatCurrent: {
         useQuery: () => ({
-          data: [owned],
+          data: operations,
           isPending: false,
           isError: false,
           refetch: read,
@@ -60,6 +61,7 @@ mock.module("~/trpc/react", () => ({
     },
   },
 }));
+const { OwnedChatRecovery } = await import("~/lib/generation/chat-recovery");
 const { LLMProvider } = await import("./llm-context");
 const runtime: import("~/lib/generation/chat-runtime").ChatRuntime = {
   source: "local",
@@ -69,36 +71,47 @@ const runtime: import("~/lib/generation/chat-runtime").ChatRuntime = {
     throw Error("Recovery cannot generate");
   },
 };
-test("public document chat wrapper restores and cancels owned acceptance independently of selected runtime", async () => {
-  // Legacy config is unused by this read-only wrapper fixture.
+test("document provider leaves the editor free of chat recovery controls", async () => {
   const view = await render(
     <LLMProvider
       initialConfig={{} as never}
       documentId="doc"
       chatRuntime={runtime}
     >
-      <p>Conversation</p>
+      <p>Document editor</p>
     </LLMProvider>,
   );
   try {
+    expect(document.body.textContent).toBe("Document editor");
+  } finally {
+    await view.unmount();
+  }
+});
+test("chat recovery restores and cancels owned acceptance independently of selected runtime", async () => {
+  // Legacy config is unused by this read-only wrapper fixture.
+  const view = await render(<OwnedChatRecovery documentId="doc" />);
+  try {
     expect(document.body.textContent).toContain("reserved");
-    await click(button("Cancel owned chat"));
+    await click(button("Stop chat"));
     expect(cancel).toHaveBeenCalledWith({ documentId: "doc", id: "detached" });
-    await click(button("Refresh owned chats"));
+    await click(button("Refresh chats"));
     expect(read).toHaveBeenCalled();
     account = "foreign";
-    await view.rerender(
-      <LLMProvider
-        initialConfig={{} as never}
-        documentId="doc"
-        chatRuntime={runtime}
-      >
-        <p>Conversation</p>
-      </LLMProvider>,
-    );
-    expect(button("Cancel owned chat")).toBeUndefined();
+    await view.rerender(<OwnedChatRecovery documentId="doc" />);
+    expect(button("Stop chat")).toBeUndefined();
   } finally {
     await view.unmount();
     account = "alice";
+  }
+});
+
+test("empty chat recovery occupies no space", async () => {
+  operations = [];
+  const view = await render(<OwnedChatRecovery documentId="doc" />);
+  try {
+    expect(document.body.textContent).toBe("");
+  } finally {
+    await view.unmount();
+    operations = [owned];
   }
 });

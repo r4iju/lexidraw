@@ -185,11 +185,18 @@ function ScopedProTrial({ initialStatus, accountId }: TrialProps) {
   return (
     <section className="flex flex-col gap-4" aria-labelledby="pro-trial-title">
       <h3 id="pro-trial-title" className="font-semibold">
-        Pro, coming soon
+        {status.data.entitled
+          ? "Pro"
+          : status.data.eligible
+            ? "Pro access"
+            : "Pro, coming soon"}
       </h3>
       <p className="text-sm">
-        Public purchases are unavailable. Private eligibility and an allowance
-        are required. Provider capabilities remain unavailable until verified.
+        {status.data.entitled
+          ? "Pro is active on your account. Your allowance is shared across web and iOS."
+          : status.data.eligible
+            ? "Your account is approved for Pro, but has no active allowance."
+            : "Pro is coming soon. Public purchases are unavailable."}
       </p>
       {status.isError ? (
         <p role="alert">
