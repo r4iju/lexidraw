@@ -140,9 +140,9 @@ export function AiPowerSection({
       </Select>
       {save.isError && <p role="alert">Could not save the power preference.</p>}
       <p className="text-sm">
-        Local text generation is unavailable in this browser. Pro is coming
-        soon. This direct text connection check is independent of Pro. Other AI
-        capabilities are not enabled by this check.
+        Local text generation is unavailable in this browser. Public Pro
+        purchases are not available yet. This direct text connection check is
+        independent of Pro. Other AI capabilities are not enabled by this check.
       </p>
       <ProTrialSection accountId={accountId} initialStatus={proStatus} />
       {ownKey && (
