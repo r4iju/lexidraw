@@ -562,6 +562,13 @@ function EditorHandler({
                                   compactOnPhone
                                   actions={
                                     <>
+                                      {isEditable &&
+                                        autocomplete &&
+                                        signedIn && (
+                                          <AutocompletePlugin
+                                            title={entity.title}
+                                          />
+                                        )}
                                       {frame.isOwner && (
                                         <ShareButton
                                           onClick={() => setSharing(true)}
@@ -663,9 +670,6 @@ function EditorHandler({
                               <PollPlugin />
                               <CodeHighlightPlugin />
                               <CodeLineNumbersPlugin />
-                              {isEditable && autocomplete && signedIn && (
-                                <AutocompletePlugin title={entity.title} />
-                              )}
                               <AutoEmbedPlugin />
                               <AutoLinkPlugin />
                               <HorizontalRulePlugin />

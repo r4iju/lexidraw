@@ -3,7 +3,6 @@
 import { createContext, useContext, useState, useRef, useEffect } from "react";
 import type { PropsWithChildren } from "react";
 import { useSession } from "next-auth/react";
-import { OwnedChatRecovery } from "~/lib/generation/chat-recovery";
 import { api } from "~/trpc/react";
 import {
   useBrowserByok,
@@ -171,7 +170,6 @@ type Turn =
 export function LLMProvider(props: LLMProviderProps) {
   return (
     <>
-      {props.documentId && <OwnedChatRecovery documentId={props.documentId} />}
       {props.chatRuntime ? (
         <RuntimeProvider {...props} runtime={props.chatRuntime} />
       ) : (

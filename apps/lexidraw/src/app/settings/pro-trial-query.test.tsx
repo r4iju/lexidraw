@@ -198,3 +198,12 @@ test("an owned running text operation remains cancellable when entitlement close
     owned = undefined;
   }
 });
+
+test("an active Pro account is identified as active rather than coming soon", () => {
+  status.data = { ...initialStatus, eligible: true, entitled: true };
+  const html = renderToStaticMarkup(
+    <ProTrialSection accountId="alice" initialStatus={initialStatus} />,
+  );
+  expect(html).toContain("Pro is active on your account.");
+  expect(html).not.toContain("Pro, coming soon");
+});
