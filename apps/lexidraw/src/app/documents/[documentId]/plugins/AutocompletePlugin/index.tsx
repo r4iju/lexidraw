@@ -1,7 +1,12 @@
 "use client";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
-import { Label } from "~/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
+import { CircleAlert, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   useCallback,
@@ -37,14 +42,6 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   const allowance = api.pro.status.useQuery(undefined, {
     enabled: power.data?.mode === "pro",
     refetchInterval: 5000,
-  });
-  const save = api.config.updateAutocompleteConfig.useMutation({
-    onMutate: async (input) => {
-      await utils.config.getAutocompleteConfig.cancel();
-      if (!input.enabled)
-        utils.config.getAutocompleteConfig.setData(undefined, input);
-    },
-    onSettled: () => utils.config.getAutocompleteConfig.invalidate(),
   });
   const account = useSession();
   const accountId =
@@ -159,8 +156,6 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
       !accountId ||
       !session ||
       !enabled ||
-      save.isPending ||
-      save.error ||
       config.error ||
       power.error ||
       !preference ||
@@ -218,8 +213,6 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     accountId,
     proForOwner,
     enabled,
-    save.isPending,
-    save.error,
     config.error,
     power.error,
     preference,
@@ -231,104 +224,123 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     utils,
   ]);
 
+  const needsAttention = !!(
+    recovery?.pending ||
+    message ||
+    (enabled && unavailable) ||
+    config.error ||
+    power.error
+  );
+
   return (
-    <div
-      className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs"
-      contentEditable={false}
-    >
-      <Checkbox
-        id="writing-suggestions"
-        checked={enabled}
-        disabled={config.isPending || save.isPending}
-        onCheckedChange={(checked) =>
-          save.mutate({ enabled: checked === true })
-        }
-      />
-      <Label htmlFor="writing-suggestions">Writing suggestions</Label>
-      <QueryNotice access={powerAccess} retry={() => void power.refetch()} />
-      <QueryNotice access={configAccess} retry={() => void config.refetch()} />
-      <QueryNotice access={access} retry={() => void allowance.refetch()} />
-      <span role="status">
-        {powerAccess.kind !== "ready" || configAccess.kind !== "ready"
-          ? "Suggestions paused until settings are available."
-          : save.error
-            ? "Suggestions unavailable. Check AI Power."
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0"
+          aria-label="Writing suggestions"
+          aria-description={needsAttention ? "Needs attention" : undefined}
+          title={
+            needsAttention
+              ? "Writing suggestions need attention"
+              : "Writing suggestions"
+          }
+        >
+          {needsAttention ? (
+            <CircleAlert aria-hidden="true" className="size-4 text-warning" />
+          ) : (
+            <Sparkles aria-hidden="true" className="size-4" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        aria-label="Writing suggestions"
+        className="space-y-3 text-sm break-words"
+      >
+        <p className="font-medium">Writing suggestions</p>
+        <QueryNotice access={powerAccess} retry={() => void power.refetch()} />
+        <QueryNotice
+          access={configAccess}
+          retry={() => void config.refetch()}
+        />
+        <QueryNotice access={access} retry={() => void allowance.refetch()} />
+        <p role="status">
+          {powerAccess.kind !== "ready" || configAccess.kind !== "ready"
+            ? "Suggestions paused until settings are available."
             : !enabled
               ? "Off · opt in to use your AI power source"
               : unavailable || message || "On · accept with Tab"}
-      </span>
-      {recoveryMessage && <span role="status">{recoveryMessage}</span>}
-      {accountId && recovery?.pending && (
-        <>
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              if (!session) return;
-              const setMessage = (message: string) =>
-                setOwnedNotice({ scope: recoveryScope, message });
-              void refreshOwnedSuggestion(session, proForOwner())
-                .then((operation) => {
-                  setMessage(
-                    operation?.state === "unknown"
-                      ? "A suggestion is reconciling; credits remain reserved."
-                      : "Owned suggestion status refreshed.",
+        </p>
+        {recoveryMessage && <p role="status">{recoveryMessage}</p>}
+        {accountId && recovery?.pending && (
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => {
+                if (!session) return;
+                const setMessage = (message: string) =>
+                  setOwnedNotice({ scope: recoveryScope, message });
+                void refreshOwnedSuggestion(session, proForOwner())
+                  .then((operation) => {
+                    setMessage(
+                      operation?.state === "unknown"
+                        ? "A suggestion is reconciling; credits remain reserved."
+                        : "Owned suggestion status refreshed.",
+                    );
+                    void utils.pro.status.invalidate();
+                  })
+                  .catch(() =>
+                    setMessage(
+                      "Suggestion acceptance or status is still unconfirmed. Retry the owned read.",
+                    ),
                   );
-                  void utils.pro.status.invalidate();
-                })
-                .catch(() =>
-                  setMessage(
-                    "Suggestion acceptance or status is still unconfirmed. Retry the owned read.",
-                  ),
-                );
-            }}
-          >
-            Refresh owned suggestion
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              if (!session) return;
-              const setMessage = (message: string) =>
-                setOwnedNotice({ scope: recoveryScope, message });
-              void refreshOwnedSuggestion(session, proForOwner(), true)
-                .then((operation) => {
-                  setMessage(
-                    operation &&
-                      ["reserved", "running", "unknown"].includes(
-                        operation.state,
-                      )
-                      ? "Cancellation is unconfirmed; credits remain reserved."
-                      : "Suggestion stopped.",
+              }}
+            >
+              Refresh suggestion status
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => {
+                if (!session) return;
+                const setMessage = (message: string) =>
+                  setOwnedNotice({ scope: recoveryScope, message });
+                void refreshOwnedSuggestion(session, proForOwner(), true)
+                  .then((operation) => {
+                    setMessage(
+                      operation &&
+                        ["reserved", "running", "unknown"].includes(
+                          operation.state,
+                        )
+                        ? "Cancellation is unconfirmed; credits remain reserved."
+                        : "Suggestion stopped.",
+                    );
+                    void utils.pro.status.invalidate();
+                  })
+                  .catch(() =>
+                    setMessage(
+                      "Cancellation is unconfirmed. Retry the owned read or cancellation.",
+                    ),
                   );
-                  void utils.pro.status.invalidate();
-                })
-                .catch(() =>
-                  setMessage(
-                    "Cancellation is unconfirmed. Retry the owned read or cancellation.",
-                  ),
-                );
-            }}
-          >
-            Cancel owned suggestion
-          </Button>
-        </>
-      )}
-      {enabled && preference?.mode === "pro" && allowance.data && (
-        <span>
-          {(allowance.data.availableSubcredits / 1_000_000).toFixed(3)} credits
-          available ·{" "}
-          {(allowance.data.reservedSubcredits / 1_000_000).toFixed(3)} reserved
-          ·{" "}
-          {(
-            allowance.data.history
-              .filter((item) => item.feature === "autocomplete")
-              .reduce((sum, item) => sum + item.charged, 0) / 1_000_000
-          ).toFixed(3)}{" "}
-          suggestion credits in recent usage
-        </span>
-      )}
-    </div>
+              }}
+            >
+              Cancel suggestion
+            </Button>
+          </div>
+        )}
+        <Link
+          href="/settings#settings-ai"
+          className="block text-primary underline underline-offset-4"
+        >
+          Manage suggestions and AI Power
+        </Link>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -2,18 +2,12 @@ import { expect, mock, test } from "bun:test";
 import { act } from "react";
 import { SessionProvider } from "next-auth/react";
 import { PathParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { TRPCClientError } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  $getRoot,
-  $createParagraphNode,
-  $createTextNode,
-  type LexicalEditor,
-} from "lexical";
+import type { LexicalEditor } from "lexical";
 import { createClient } from "@libsql/client";
 import { api } from "~/trpc/react";
 import { installDom, render, click, button } from "~/test/dom";
@@ -26,11 +20,23 @@ import { supplierFixture } from "~/test/supplier-fixture";
 import { ProLedger } from "~/server/pro/ledger";
 import { ProTextOperation } from "~/server/pro/operation";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
+installDom("http://localhost");
+const { LexicalComposer } = await import("@lexical/react/LexicalComposer");
+const { ContentEditable } = await import(
+  "@lexical/react/LexicalContentEditable"
+);
+const { useLexicalComposerContext } = await import(
+  "@lexical/react/LexicalComposerContext"
+);
+const { $getRoot, $createParagraphNode, $createTextNode } = await import(
+  "lexical"
+);
 const db = await installServerRuntime();
 const schema = await import("@packages/drizzle/drizzle-schema");
 const { createProRouter } = await import("~/server/api/routers/pro");
 const { default: AutocompletePlugin } = await import("./index");
-installDom("http://localhost");
+window.Range.prototype.getBoundingClientRect = () =>
+  new window.DOMRect(0, 0, 0, 0);
 window.fetch = Object.assign(
   async () => {
     throw new Error("Unexpected device HTTP");
@@ -175,36 +181,57 @@ test("replaced real suggestion registration hides old notices and ignores late c
   let editor: LexicalEditor | undefined;
   function EditorRoot() {
     [editor] = useLexicalComposerContext();
-    return (
-      <div contentEditable ref={(element) => editor?.setRootElement(element)} />
-    );
+    return <ContentEditable aria-label="Document body" />;
   }
   const node = (title: string) => (
     <SessionProvider session={{ user: { id: account }, expires: "2099-01-01" }}>
-      <PathParamsContext.Provider
-        value={{ documentId: "synthetic-d3-document" }}
+      <AppRouterContext.Provider
+        value={{
+          bfcacheId: "suggestion-test",
+          back() {},
+          forward() {},
+          refresh() {},
+          push() {},
+          replace() {},
+          prefetch: async () => {},
+        }}
       >
-        <QueryClientProvider client={query}>
-          <api.Provider client={client} queryClient={query}>
-            <LexicalComposer
-              initialConfig={{
-                namespace: "D3Suggestion",
-                onError: (error) => {
-                  throw error;
-                },
-              }}
-            >
-              <EditorRoot />
-              <AutocompletePlugin title={title} />
-            </LexicalComposer>
-          </api.Provider>
-        </QueryClientProvider>
-      </PathParamsContext.Provider>
+        <PathParamsContext.Provider
+          value={{ documentId: "synthetic-d3-document" }}
+        >
+          <QueryClientProvider client={query}>
+            <api.Provider client={client} queryClient={query}>
+              <LexicalComposer
+                initialConfig={{
+                  namespace: "D3Suggestion",
+                  onError: (error) => {
+                    throw error;
+                  },
+                }}
+              >
+                <EditorRoot />
+                <AutocompletePlugin title={title} />
+              </LexicalComposer>
+            </api.Provider>
+          </QueryClientProvider>
+        </PathParamsContext.Provider>
+      </AppRouterContext.Provider>
     </SessionProvider>
   );
   const view = await render(node("Original title"));
-  const type = async (text: string) =>
-    act(async () => {
+  const trigger = () =>
+    document.querySelector('button[aria-label="Writing suggestions"]');
+  const type = async (text: string) => {
+    if (trigger()?.getAttribute("aria-expanded") === "true") {
+      await click(trigger());
+      await act(async () => {
+        await Bun.sleep(20);
+      });
+    }
+    await act(async () => {
+      editor?.getRootElement()?.focus();
+    });
+    await act(async () => {
       editor?.update(
         () => {
           $getRoot().clear();
@@ -215,16 +242,28 @@ test("replaced real suggestion registration hides old notices and ignores late c
         { discrete: true },
       );
     });
+  };
   const mainStatus = () =>
-    document.querySelector('span[role="status"]')?.textContent ?? "";
+    document.querySelector('p[role="status"]')?.textContent ?? "";
   try {
-    await until(() => mainStatus().includes("On"));
+    expect(document.body.textContent).not.toContain("credits");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    await until(
+      () =>
+        !!query.getQueryData(getQueryKey(api.pro.status, undefined, "query")),
+    );
     await type("Hello original");
+    await until(
+      () => trigger()?.getAttribute("aria-description") === "Needs attention",
+    );
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(document.body.textContent).not.toContain("credits");
+    await click(trigger());
     await until(() => mainStatus().includes("reconciling"));
     expect(originalId).not.toBe("");
     await view.rerender(node("Replacement title"));
     expect(mainStatus()).toBe("On · accept with Tab");
-    expect(button("Refresh owned suggestion")).toBeDefined();
+    expect(button("Refresh suggestion status")).toBeDefined();
     // Respect the real registration's shared six-second request rate.
     await act(async () => {
       await Bun.sleep(6100);
@@ -239,12 +278,13 @@ test("replaced real suggestion registration hides old notices and ignores late c
     await act(async () => {
       await Bun.sleep(30);
     });
+    await click(trigger());
     expect(mainStatus()).toBe("On · accept with Tab");
     expect(document.body.textContent).not.toContain(
       "Cancellation is unconfirmed. Refresh owned suggestion status.",
     );
     holdRead = false;
-    await click(button("Refresh owned suggestion"));
+    await click(button("Refresh suggestion status"));
     await until(
       () => calls.filter((x) => x.path === "pro.operation").length >= 2,
     );
@@ -270,7 +310,7 @@ test("replaced real suggestion registration hides old notices and ignores late c
       await Bun.sleep(20);
     });
     expect(mainStatus()).toBe("On · accept with Tab");
-    expect(button("Refresh owned suggestion")).toBeDefined();
+    expect(button("Refresh suggestion status")).toBeDefined();
   } finally {
     readGate.release();
     cancelGate.release();

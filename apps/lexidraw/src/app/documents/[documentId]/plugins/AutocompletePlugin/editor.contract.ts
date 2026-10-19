@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { installDom } from "~/test/dom";
 installDom();
+window.Range.prototype.getBoundingClientRect = () =>
+  new window.DOMRect(0, 0, 0, 0);
 const {
   createEditor,
   $getRoot,
@@ -20,9 +22,11 @@ test("actual Lexical suggestions preserve explicit acceptance and supersession",
     },
   });
   const root = document.createElement("div");
-  root.contentEditable = "true";
+  root.setAttribute("contenteditable", "true");
+  root.tabIndex = 0;
   document.body.append(root);
   editor.setRootElement(root);
+  root.focus();
   const pending: { signal: AbortSignal; reply: (text: string) => void }[] = [];
   let stop = registerAutocomplete(editor, {
     title: "",
@@ -103,8 +107,11 @@ test("source changes retain the editor request rate limit", async () => {
     },
   });
   const root = document.createElement("div");
+  root.setAttribute("contenteditable", "true");
+  root.tabIndex = 0;
   document.body.append(root);
   editor.setRootElement(root);
+  root.focus();
   let calls = 0;
   const options = {
     title: "",
@@ -160,8 +167,11 @@ test("marked composition, deletion and undo preserve actual editor text and sele
     },
   });
   const root = document.createElement("div");
+  root.setAttribute("contenteditable", "true");
+  root.tabIndex = 0;
   document.body.append(root);
   editor.setRootElement(root);
+  root.focus();
   const history = registerHistory(editor, createEmptyHistoryState(), 0);
   let reply: ((s: string) => void) | undefined;
   const stop = registerAutocomplete(editor, {
@@ -251,6 +261,8 @@ test("switching documents waits for the previous editor request to finish", asyn
   ] as const;
   const roots = editors.map((editor) => {
     const root = document.createElement("div");
+    root.setAttribute("contenteditable", "true");
+    root.tabIndex = 0;
     document.body.append(root);
     editor.setRootElement(root);
     return root;
@@ -268,7 +280,8 @@ test("switching documents waits for the previous editor request to finish", asyn
       });
     },
   });
-  const typeInto = (editor: (typeof editors)[number]) =>
+  const typeInto = (editor: (typeof editors)[number]) => {
+    editor.getRootElement()?.focus();
     editor.update(
       () => {
         const text = $createTextNode("Hello");
@@ -277,6 +290,7 @@ test("switching documents waits for the previous editor request to finish", asyn
       },
       { discrete: true },
     );
+  };
   typeInto(editors[0]);
   await pause();
   stopFirst();
