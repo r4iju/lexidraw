@@ -5,14 +5,27 @@ account-owned retained audio, and web/native quote and playback controls. Public
 Pro remains **Coming soon**, with no live checkout. Eligibility is an owner grant
 separate from the dated credit entitlement. Selecting Pro does not grant access.
 
-## Production capability is disabled
+## Production capability: owner-granted accounts
 
-`serverProNarration()` deliberately returns no provider. No key, environment flag,
-client model selection, BYOK configuration, or local fallback enables it. Google
-public metadata establishes a reference configuration and rates, but does not
-establish actual account access, successful generation, complete metering, or an
-enforceable paid audio output bound. A separately authorized actual service
-preflight is still required. No paid generation was used for this implementation.
+`serverProNarration()` dispatches to Gemini (`narration-gemini.ts`) with the server
+`GOOGLE_API_KEY`, and the ledger runtime registers the narration book as a
+`verified-server` supplier. Without the key there is no provider. Access still
+requires an owner eligibility grant, an active credit period and Pro selected in AI
+Power; public Pro remains Coming soon.
+
+Owner-authorized preflight on 2026-10-24 (about US$0.02 total):
+
+- `gemini-3.8-flash-lite-tts` is available to the key. Responses are `audio/wav`:
+  24 kHz mono 16-bit PCM followed by a C2PA provenance chunk. The transport keeps
+  only the PCM and rewraps it as the canonical WAV that playback validates.
+- A 500-character chunk produced 39.3 s for 115 input and 981 audio tokens, about
+  25 audio tokens per second as quoted.
+- With `maxOutputTokens: 100` the same chunk stopped at 99 audio tokens with
+  `finishReason: MAX_TOKENS`. Each request carries the book's 3,000-token cap, so
+  provider output is bounded per attempt. A capped part fails with its cost
+  recorded rather than being stored as complete.
+- A two-chunk document ran through `ProNarration` and the real ledger against an
+  in-memory database and settled at 4.28 credits against a 25.9 credit quote.
 
 The complete injected path uses the production authenticated router, ledger,
 workflow entry/step, web panel, native composer, and existing native player. Local

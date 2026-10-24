@@ -13,10 +13,10 @@ import { htmlToPlainText } from "@packages/lexical-nodes";
 import { createNarrationRouter } from "~/server/api/routers/narration";
 import { ProError } from "./ledger";
 import { proLedger } from "./runtime";
-// No secret, environment flag, or client configuration activates an unverified provider.
 export const narrationRouter = createNarrationRouter({
   ledger: proLedger,
-  executor: serverProNarration(),
+  executor: serverProNarration,
+  verified: true,
   source: async (account) => {
     const [user] = await drizzle
       .select({ config: schema.users.config })

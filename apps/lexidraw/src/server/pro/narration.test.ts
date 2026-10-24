@@ -90,7 +90,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   let documentAccess = true;
   const routerDeps = {
     ledger: () => ledger,
-    executor,
+    executor: () => executor,
     source: async () => mode,
     read: async (_a: string, id: string) => {
       if (!documentAccess || id !== "doc")
@@ -910,7 +910,7 @@ for (const uncertain of [false, true]) {
     let dispatches = 0;
     const router = createNarrationRouter({
       ledger: () => f.ledger,
-      executor: f.executor,
+      executor: () => f.executor,
       source: async () => "pro",
       read: async () => "A calm reading.",
       dispatch: async (account, id) => {
