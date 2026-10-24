@@ -84,7 +84,8 @@ export function ListenProvider({ children }: { children: ReactNode }) {
       documentId,
       ready,
       generating: isGeneratingAudio,
-      generate: () => setSettingsOpen(true),
+      // New narration starts in the player, which holds the Pro narration panel.
+      generate: () => setPlayerOpen(true),
       openSettings: () => setSettingsOpen(true),
       playerOpen,
       setPlayerOpen,
@@ -108,8 +109,8 @@ export function ListenProvider({ children }: { children: ReactNode }) {
             <DialogTitle>Listen settings</DialogTitle>
           </DialogHeader>
           <p>
-            New narration follows your account AI Power preference. Legacy voice
-            services are unavailable. Saved recordings remain available.
+            New narration follows your account AI Power preference. With Pro,
+            start one from the player. Saved recordings remain available.
           </p>
           <a href="/settings#settings-ai-power">
             Manage AI Power and playback speed
@@ -148,7 +149,7 @@ export function ListenItems({ withPlay = false }: { withPlay?: boolean }) {
         ) : (
           <Volume2 className="size-4" />
         )}
-        New narration unavailable
+        New narration…
       </DropdownMenuItem>
       <DropdownMenuItem className="gap-2" onSelect={openSettings}>
         <Settings className="size-4" />
