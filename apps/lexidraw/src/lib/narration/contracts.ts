@@ -22,8 +22,17 @@ export const NARRATION_BOOK_V1 = {
     { from: "2027-01-01", inputNanoUsd: 1000, audioNanoUsd: 12000 },
   ],
 } as const;
-// Retain the original book for deterministic legacy-period mapping.
-export const NARRATION_BOOK = NARRATION_BOOK_V1;
+// Same rates and per-part caps as v1, bounded for long documents: sentence-bounded
+// parts, generated a few per workflow step within an hour.
+export const NARRATION_BOOK_V2 = {
+  ...NARRATION_BOOK_V1,
+  version: "private-narration-2026-10-v2",
+  maxChunks: 240,
+  maxDocumentBytes: 120_000,
+  maxElapsedMs: 3_600_000,
+  maxAttempts: 240,
+} as const;
+export const NARRATION_BOOK = NARRATION_BOOK_V2;
 export const NarrationBook = z
   .strictObject({
     version: z.string().min(1),
@@ -37,10 +46,10 @@ export const NarrationBook = z
     maxChunkInputTokens: z.literal(2850),
     maxChunkAudioTokens: z.literal(3000),
     maxChunkSeconds: z.literal(120),
-    maxChunks: z.literal(8),
-    maxDocumentBytes: z.literal(6000),
-    maxElapsedMs: z.literal(1_200_000),
-    maxAttempts: z.literal(8),
+    maxChunks: z.union([z.literal(8), z.literal(240)]),
+    maxDocumentBytes: z.union([z.literal(6000), z.literal(120_000)]),
+    maxElapsedMs: z.union([z.literal(1_200_000), z.literal(3_600_000)]),
+    maxAttempts: z.union([z.literal(8), z.literal(240)]),
     maxRetries: z.literal(2),
     schedule: z.array(
       z.strictObject({
@@ -115,7 +124,7 @@ export const NarrationPlan = z
     }),
   )
   .min(1)
-  .max(8);
+  .max(240);
 export type NarrationPlan = z.infer<typeof NarrationPlan>;
 export const NarrationReservation = z
   .strictObject({
@@ -134,7 +143,13 @@ export const NarrationReservation = z
 export const NarrationRequest = z.strictObject({
   documentId: z.string().min(1).max(100),
 });
+/** Inline audio for existing native clients; `url` keeps progress small for long recordings. */
+export const NarrationDelivery = z.enum(["inline", "url"]).optional();
+export const NarrationSaved = NarrationRequest.extend({
+  delivery: NarrationDelivery,
+});
 export const NarrationGenerate = NarrationRequest.extend({
+  delivery: NarrationDelivery,
   idempotencyKey: z.string().min(1).max(100),
   acceptedRevision: z.string().length(64),
   acceptedPeriod: z.string().nullable(),
@@ -159,7 +174,8 @@ export const NarrationSnapshot = z.object({
     z.object({
       id: z.string(),
       text: z.string(),
-      audio: z.string(),
+      audio: z.string().optional(),
+      url: z.string().optional(),
       seconds: z.number(),
     }),
   ),

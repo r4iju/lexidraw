@@ -4,6 +4,8 @@ import {
   NarrationPart,
   NarrationRequest,
   NarrationGenerate,
+  NarrationDelivery,
+  NarrationSaved,
   NARRATION_UNAVAILABLE,
 } from "~/lib/narration/contracts";
 import {
@@ -77,6 +79,7 @@ export function createNarrationRouter(deps: {
           input.acceptedMaximum,
           input.acceptedRevision,
           input.acceptedPeriod,
+          input.delivery,
         );
         if (result.id && ["reserved", "running"].includes(result.state)) {
           const ledger = deps.ledger();
@@ -87,7 +90,7 @@ export function createNarrationRouter(deps: {
               await ledger.failDispatch(account, result.id);
             }
           }
-          return e.recover(account, result.id);
+          return e.recover(account, result.id, input.delivery);
         }
         return result;
       }),
@@ -99,7 +102,7 @@ export function createNarrationRouter(deps: {
       );
     }),
     operation: procedure
-      .input(z.strictObject({ id: z.string() }))
+      .input(z.strictObject({ id: z.string(), delivery: NarrationDelivery }))
       .query(async ({ ctx, input }) => {
         const account = ctx.session.user.id;
         const job = await deps.ledger().narrationPlan(account, input.id);
@@ -107,6 +110,7 @@ export function createNarrationRouter(deps: {
         return new SavedNarrationReader(deps.ledger()).snapshot(
           account,
           input.id,
+          input.delivery,
         );
       }),
     reconcilePart: procedure
@@ -134,18 +138,23 @@ export function createNarrationRouter(deps: {
         return executor().recover(op.operation.account_id, input.id);
       }),
     cancel: procedure
-      .input(z.strictObject({ id: z.string() }))
+      .input(z.strictObject({ id: z.string(), delivery: NarrationDelivery }))
       .mutation(async ({ ctx, input }) => {
         await deps.ledger().cancel(ctx.session.user.id, input.id);
-        return executor().recover(ctx.session.user.id, input.id);
+        return executor().recover(
+          ctx.session.user.id,
+          input.id,
+          input.delivery,
+        );
       }),
-    saved: procedure.input(NarrationRequest).query(async ({ ctx, input }) => {
+    saved: procedure.input(NarrationSaved).query(async ({ ctx, input }) => {
       const account = ctx.session.user.id;
       const text = await deps.read(account, input.documentId);
       return new SavedNarrationReader(deps.ledger()).saved(
         account,
         input.documentId,
         text,
+        input.delivery,
       );
     }),
   });

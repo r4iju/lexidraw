@@ -65,7 +65,15 @@ export function NarrationView({
                 aria-describedby={`transcript-${part.id}`}
                 controls
                 preload="metadata"
-                src={`data:audio/wav;base64,${part.audio}`}
+                src={part.url ?? `data:audio/wav;base64,${part.audio}`}
+                // Long recordings are many parts; carry on to the next one.
+                onEnded={(event) => {
+                  const next =
+                    event.currentTarget.parentElement?.nextElementSibling?.querySelector(
+                      "audio",
+                    );
+                  void next?.play().catch(() => {});
+                }}
               />
             </div>
           ))}

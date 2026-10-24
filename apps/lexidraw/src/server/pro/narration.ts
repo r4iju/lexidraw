@@ -1,5 +1,6 @@
 import type { SupplierContract } from "./supplier-contract";
 import { narrationTexts } from "~/lib/narration/portable";
+import { speakableParts } from "~/lib/narration/speakable";
 import { audioSeconds } from "./narration-audio";
 import { createHash } from "node:crypto";
 import {
@@ -36,7 +37,11 @@ export function narrationIdentity(
   if (!text.trim() || Buffer.byteLength(text) > book.maxDocumentBytes)
     throw new ProError("Document exceeds narration bounds");
   const chunks: NarrationPlan = [];
-  const texts = narrationTexts(text);
+  // v1 bounds keep their original fixed 500-character split so old plans re-derive the same hashes.
+  const texts =
+    book.maxChunks === 8 ? narrationTexts(text) : speakableParts(text);
+  if (!texts.length || texts.length > book.maxChunks)
+    throw new ProError("Document exceeds narration bounds");
   for (const text of texts) {
     chunks.push({
       text,
@@ -52,6 +57,11 @@ export function narrationIdentity(
   }
   return { hash: hash(text), plan: NarrationPlan.parse(chunks) };
 }
+export type NarrationDelivery = "inline" | "url";
+export type NarrationProgress = {
+  state: NarrationSnapshot["state"];
+  more: boolean;
+};
 export class ProNarration {
   constructor(
     readonly ledger: ProLedger,
@@ -97,6 +107,7 @@ export class ProNarration {
     maximum: number,
     acceptedRevision: string,
     acceptedPeriod: string | null,
+    delivery: NarrationDelivery = "inline",
   ) {
     const identity = narrationIdentity(text);
     if (identity.hash !== acceptedRevision)
@@ -118,12 +129,12 @@ export class ProNarration {
         throw new ProError("Entitlement period conflicts with prior action");
       if (maximum !== old.operation.quote)
         throw new ProError("Accept the maximum narration quote");
-      return this.snapshot(account, old.operation.id);
+      return this.snapshot(account, old.operation.id, delivery);
     }
     const q = await this.quote(account, text);
     if (maximum !== q.maximum)
       throw new ProError("Accept the maximum narration quote");
-    if (!q.missing) return this.savedPlan(account, q.plan);
+    if (!q.missing) return this.savedPlan(account, q.plan, delivery);
     if (acceptedPeriod !== q.periodId || !q.periodId)
       throw new ProError("Entitlement period changed. Review a new quote.");
     const op = await this.ledger.reserve(
@@ -139,12 +150,26 @@ export class ProNarration {
         plan: q.plan,
       },
     );
-    return this.snapshot(account, op.id);
+    return this.snapshot(account, op.id, delivery);
   }
   async execute(account: string, id: string): Promise<NarrationSnapshot> {
+    await this.run(account, id, Number.POSITIVE_INFINITY);
+    return this.snapshot(account, id);
+  }
+  /** Dispatches at most `budget` parts so each durable step stays short; `more` asks for another step. */
+  async step(
+    account: string,
+    id: string,
+    budget: number,
+  ): Promise<NarrationProgress> {
+    const more = await this.run(account, id, budget);
+    return { state: (await this.ledger.operation(account, id)).state, more };
+  }
+  private async run(account: string, id: string, budget: number) {
     let { operation: op, plan } = await this.ledger.narrationPlan(account, id);
     if (["settled", "refunded", "cancelled", "unknown"].includes(op.state))
-      return this.snapshot(account, id);
+      return false;
+    let dispatched = 0;
     const book = NarrationBook.parse(JSON.parse(op.pricebook));
     // A resumed step reads committed parts; the next paid request is fenced atomically.
     await this.ledger.claim(id);
@@ -153,11 +178,15 @@ export class ProNarration {
       const attempts = await this.ledger.attempts(account, id);
       const prior = attempts.find((a) => a.chunk_hash === chunk.hash);
       if (prior?.state === "completed") continue;
-      if (prior) return this.recover(account, id);
+      if (dispatched >= budget) return true;
+      if (prior) {
+        await this.recover(account, id);
+        return false;
+      }
       op = await this.ledger.operation(account, id);
       if (op.cancel_requested) {
         await this.ledger.settle(id, { kind: "cancelled" });
-        return this.snapshot(account, id);
+        return false;
       }
       let attempt: string;
       try {
@@ -170,8 +199,10 @@ export class ProNarration {
           !now.some((a) => a.chunk_hash === chunk.hash)
         )
           await this.ledger.settle(id, { kind: "technical_failure" });
-        return this.recover(account, id);
+        await this.recover(account, id);
+        return false;
       }
+      dispatched++;
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<NarrationOutcome>((resolve) => {
@@ -212,14 +243,22 @@ export class ProNarration {
         await this.ledger.finishAttempt(attempt, outcome);
       } catch {
         await this.ledger.finishAttempt(attempt, { kind: "unknown" });
-        return this.recover(account, id);
+        await this.recover(account, id);
+        return false;
       }
-      if (outcome.kind !== "completed") return this.recover(account, id);
+      if (outcome.kind !== "completed") {
+        await this.recover(account, id);
+        return false;
+      }
     }
     await this.ledger.settle(id, { kind: "narration_completed" });
-    return this.snapshot(account, id);
+    return false;
   }
-  async recover(account: string, id: string) {
+  async recover(
+    account: string,
+    id: string,
+    delivery: NarrationDelivery = "inline",
+  ) {
     const op = await this.ledger.operation(account, id);
     if (["reserved", "running", "unknown"].includes(op.state)) {
       let attempts = await this.ledger.attempts(account, id);
@@ -252,13 +291,29 @@ export class ProNarration {
         }
       }
     }
-    return this.snapshot(account, id);
+    return this.snapshot(account, id, delivery);
   }
-  snapshot(account: string, id: string) {
-    return new SavedNarrationReader(this.ledger).snapshot(account, id);
+  snapshot(
+    account: string,
+    id: string,
+    delivery: NarrationDelivery = "inline",
+  ) {
+    return new SavedNarrationReader(this.ledger).snapshot(
+      account,
+      id,
+      delivery,
+    );
   }
-  savedPlan(account: string, plan: NarrationPlan) {
-    return new SavedNarrationReader(this.ledger).savedPlan(account, plan);
+  savedPlan(
+    account: string,
+    plan: NarrationPlan,
+    delivery: NarrationDelivery = "inline",
+  ) {
+    return new SavedNarrationReader(this.ledger).savedPlan(
+      account,
+      plan,
+      delivery,
+    );
   }
 }
 
@@ -271,6 +326,7 @@ export class SavedNarrationReader {
       | "narrationPlan"
       | "attempts"
       | "narrationPart"
+      | "narrationPartSeconds"
       | "narrationCache"
     >,
   ) {}
@@ -283,7 +339,12 @@ export class SavedNarrationReader {
     )[0];
     return row ? { id: String(row.id) } : null;
   }
-  async saved(account: string, documentId: string, text: string) {
+  async saved(
+    account: string,
+    documentId: string,
+    text: string,
+    delivery: NarrationDelivery = "inline",
+  ) {
     // Prefer a complete current recording, then preserve the latest historical job/parts.
     let identity: ReturnType<typeof narrationIdentity> | undefined;
     try {
@@ -300,16 +361,34 @@ export class SavedNarrationReader {
         }),
       );
       if (plan.every((p) => p.cachedAttempt))
-        return this.savedPlan(account, plan);
+        return this.savedPlan(account, plan, delivery);
     }
     const [saved] = await this.ledger.query(
       "SELECT o.id FROM pro_operations o JOIN pro_narration_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? AND (EXISTS (SELECT 1 FROM pro_attempts a WHERE a.operation_id=o.id AND a.state='completed') OR EXISTS (SELECT 1 FROM json_each(j.plan) p WHERE json_extract(p.value,'$.cachedAttempt') IS NOT NULL)) ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1",
       [account, documentId],
     );
     if (!saved) throw new ProError("No saved narration for this document");
-    return this.snapshot(account, String(saved.id));
+    return this.snapshot(account, String(saved.id), delivery);
   }
-  async snapshot(account: string, id: string) {
+  /** Inline audio, or a URL plus the duration read from the stored audio's length. */
+  private async part(
+    account: string,
+    attempt: string,
+    delivery: NarrationDelivery,
+  ) {
+    if (delivery === "url")
+      return {
+        url: `/api/narration/parts/${encodeURIComponent(attempt)}`,
+        seconds: await this.ledger.narrationPartSeconds(account, attempt),
+      };
+    const part = await this.ledger.narrationPart(account, attempt);
+    return { audio: part.audio, seconds: audioSeconds(part) };
+  }
+  async snapshot(
+    account: string,
+    id: string,
+    delivery: NarrationDelivery = "inline",
+  ) {
     const [{ operation: op, plan }, attempts] = await Promise.all([
       this.ledger.narrationPlan(account, id),
       this.ledger.attempts(account, id),
@@ -326,15 +405,11 @@ export class SavedNarrationReader {
       const batch = await Promise.all(
         selected
           .slice(offset, offset + 8)
-          .map(async ({ plan: p, attempt }, index) => {
-            const part = await this.ledger.narrationPart(account, attempt);
-            return {
-              id: `${p.hash}:${offset + index}`,
-              text: p.text,
-              audio: part.audio,
-              seconds: audioSeconds(part),
-            };
-          }),
+          .map(async ({ plan: p, attempt }, index) => ({
+            id: `${p.hash}:${offset + index}`,
+            text: p.text,
+            ...(await this.part(account, String(attempt), delivery)),
+          })),
       );
       parts.push(...batch);
     }
@@ -349,17 +424,19 @@ export class SavedNarrationReader {
       policy: NARRATION_POLICY,
     });
   }
-  async savedPlan(account: string, plan: NarrationPlan) {
+  async savedPlan(
+    account: string,
+    plan: NarrationPlan,
+    delivery: NarrationDelivery = "inline",
+  ) {
     const parts = await Promise.all(
       plan.map(async (p, index) => {
         if (!p.cachedAttempt)
           throw new ProError("No saved narration for this revision");
-        const part = await this.ledger.narrationPart(account, p.cachedAttempt);
         return {
           id: `${p.hash}:${index}`,
           text: p.text,
-          audio: part.audio,
-          seconds: audioSeconds(part),
+          ...(await this.part(account, p.cachedAttempt, delivery)),
         };
       }),
     );
