@@ -355,7 +355,7 @@ function DraggablePopoverContent({
     >
       <PopoverContent
         // The page stays usable while it plays, so a sheet has no scrim.
-        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto overflow-x-hidden gap-4 max-sm:min-w-0 max-sm:shadow-(--elevation-modal)"
+        className="w-[min(92vw,24rem)] px-4 pt-0 max-h-[70vh] overflow-y-auto overflow-x-hidden gap-4 max-sm:shadow-(--elevation-modal)"
         side="bottom"
         align="end"
         sideOffset={8}
@@ -378,58 +378,65 @@ function DraggablePopoverContent({
           e.preventDefault();
         }}
       >
-        <DeviceNarrationPanel documentId={documentId} />
-        <ProNarrationPanel documentId={documentId} />
-        {/* Sticky header + controls */}
-        <div className="sticky top-0 z-20 bg-popover -mx-4 -mt-4 px-4 pt-4 pb-2">
-          <div className="relative min-w-xs">
-            <h3
-              {...attributes}
-              {...listeners}
-              className={`text-lg font-semibold leading-none tracking-tight mb-3 select-none ${
-                isDragging ? "cursor-grabbing" : "cursor-move"
-              }`}
-            >
-              Listen
-            </h3>
-            <PopoverClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-0 right-0 p-1 z-30"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close player</span>
-              </Button>
-            </PopoverClose>
-          </div>
+        <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between bg-popover px-4 pt-3 pb-2">
+          <h3
+            {...attributes}
+            {...listeners}
+            className={`text-base font-semibold leading-none select-none ${
+              isDragging ? "cursor-grabbing" : "cursor-move"
+            }`}
+          >
+            Listen
+          </h3>
+          <PopoverClose asChild>
+            <Button variant="ghost" size="icon" className="-mr-2">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close player</span>
+            </Button>
+          </PopoverClose>
+        </div>
+        <div className="space-y-1 text-sm empty:hidden">
           {screen.kind === "loading" && <p role="status">Loading audio…</p>}
           {invalidManifest && (
             <p role="alert">
               Audio segments could not be read safely.{" "}
-              <Button onClick={retryManifest}>Retry audio segments</Button>
+              <Button
+                variant="link"
+                className="h-auto p-0"
+                onClick={retryManifest}
+              >
+                Retry audio segments
+              </Button>
             </p>
           )}
-          {denied && (
-            <p role="alert">
-              Audio access could not be confirmed. Cached media is hidden.
-            </p>
-          )}
+          {denied && <p role="alert">Audio access could not be confirmed.</p>}
           {statusError && (
             <p role="alert">
               Audio status could not be refreshed.{" "}
-              <Button onClick={retryStatus}>Retry audio status</Button>
+              <Button
+                variant="link"
+                className="h-auto p-0"
+                onClick={retryStatus}
+              >
+                Retry audio status
+              </Button>
             </p>
           )}
           {manifestError && (
             <p role="alert">
               Audio segments could not be refreshed.{" "}
-              <Button onClick={retryManifest}>Retry audio segments</Button>
+              <Button
+                variant="link"
+                className="h-auto p-0"
+                onClick={retryManifest}
+              >
+                Retry audio segments
+              </Button>
             </p>
           )}
           {screen.kind === "playable" && screen.stale && (
-            <p role="status">
-              Cached audio may be stale. Refresh before relying on its progress.
+            <p role="status" className="text-muted-foreground">
+              Cached audio may be stale.
             </p>
           )}
         </div>
@@ -442,12 +449,8 @@ function DraggablePopoverContent({
             making={making}
           />
         )}
-        {screen.kind === "empty" && savedScreen.kind === "none" && (
-          <p>
-            No saved audio is available. The source controls above show whether
-            new narration is available.
-          </p>
-        )}
+        <ProNarrationPanel documentId={documentId} />
+        <DeviceNarrationPanel documentId={documentId} />
       </PopoverContent>
     </div>
   );
@@ -484,7 +487,7 @@ function RecordingPlayback({
               setCurrentIndex(currentIndex + 1);
             }
           }}
-          className="min-w-xs"
+          className="w-full"
         />
         {waiting && making && (
           <div className="text-sm text-muted-foreground">
@@ -497,7 +500,7 @@ function RecordingPlayback({
       <Accordion
         type="single"
         collapsible
-        className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
+        className="border border-border rounded-md w-full"
       >
         <AccordionItem value="segments">
           <AccordionTrigger className="px-4">Segments</AccordionTrigger>

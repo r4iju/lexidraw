@@ -24,18 +24,18 @@ export function SavedRecordingPlayback({
       return <p role="alert">Saved recording could not be read safely.</p>;
     case "saved-recording":
       return (
-        <section aria-label="Existing saved recording" className="space-y-2">
-          <h4 className="font-medium">Existing saved recording</h4>
-          <p className="text-sm text-muted-foreground">
-            Original recording transcript
-          </p>
+        <section aria-label="Saved recording" className="space-y-2">
+          <h4 className="text-sm font-medium">Saved recording</h4>
           <AudioPlayer
             key={JSON.stringify([documentId, screen.audioUrl])}
             src={screen.audioUrl}
             autoPlay={false}
-            className="min-w-xs"
+            className="w-full"
           />
-          <p className="whitespace-pre-wrap text-sm">{screen.text}</p>
+          <details className="text-sm text-muted-foreground">
+            <summary className="cursor-pointer select-none">Transcript</summary>
+            <p className="mt-1 whitespace-pre-wrap">{screen.text}</p>
+          </details>
         </section>
       );
   }

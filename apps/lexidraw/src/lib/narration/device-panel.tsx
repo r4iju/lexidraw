@@ -14,7 +14,6 @@ import {
 } from "../byok/browser-session";
 import { Button } from "~/components/ui/button";
 import { queryAccess } from "~/lib/generation/query-access";
-import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 import { DeviceNarration } from "./device-flow";
 import { browserNarrationStore, registerNarration } from "./device-store";
@@ -90,8 +89,7 @@ export function DeviceNarrationController({
 }
 export function DeviceNarrationPanel({ documentId }: { documentId: string }) {
   const { data, status } = useSession();
-  if (status !== "authenticated")
-    return <p>Sign in to open account recordings.</p>;
+  if (status !== "authenticated") return null;
   return (
     <SignedInDeviceNarration
       key={`${data.user.id}:${documentId}`}
@@ -108,7 +106,7 @@ function SignedInDeviceNarration({
   documentId: string;
 }) {
   const byok = useBrowserByok(account);
-  if (!byok) return <p>Preparing this account's device session...</p>;
+  if (!byok) return null;
   return (
     <OwnedDeviceNarration
       key={browserByokSessionGeneration()}
@@ -220,7 +218,6 @@ function OwnedDeviceNarration({
   });
   return (
     <div className="space-y-4">
-      <QueryNotice access={access} retry={() => void capability.refetch()} />
       <DeviceNarrationController
         flow={flow}
         capabilityKnown={access.kind === "ready"}
@@ -230,29 +227,28 @@ function OwnedDeviceNarration({
           flow.start(() => utils.deviceNarration.source.fetch({ documentId }))
         }
       />
-      <section aria-label="Saved account narration">
-        <h3>Saved device recording</h3>
-        {saved.isLoading ? (
-          <p>Loading saved recording…</p>
-        ) : saved.error ? (
-          <p role="alert">
-            Saved recording could not be refreshed.{" "}
-            <Button onClick={() => void saved.refetch()}>
-              Retry saved recording
-            </Button>
-          </p>
-        ) : null}
-        {saved.data ? (
-          <>
-            <p>
-              Replay is free on any signed-in device. No provider key is needed.
-            </p>
-            <RecordingControls recording={saved.data.recording} />
-          </>
-        ) : !saved.isPending && !saved.error ? (
-          <p>No saved device recording.</p>
-        ) : null}
-      </section>
+      {saved.error ? (
+        <p role="alert" className="text-sm">
+          Saved recording could not be refreshed.{" "}
+          <Button
+            variant="link"
+            className="h-auto p-0"
+            onClick={() => void saved.refetch()}
+          >
+            Retry saved recording
+          </Button>
+        </p>
+      ) : saved.data ? (
+        <section aria-label="Saved account narration" className="space-y-2">
+          <h3 className="text-sm font-medium">
+            Saved recording · replay is free
+          </h3>
+          <RecordingControls
+            label="Saved device recording"
+            recording={saved.data.recording}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

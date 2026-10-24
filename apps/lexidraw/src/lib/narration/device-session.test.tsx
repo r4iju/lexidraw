@@ -3,6 +3,14 @@ import { act } from "react";
 import { button, click, installDom, render } from "~/test/dom";
 import { createByokSession } from "../byok/session";
 installDom();
+import type { AudioPlayerProps } from "~/components/ui/audio-player";
+mock.module("~/components/ui/audio-player", () => ({
+  AudioPlayer: (props: AudioPlayerProps) => (
+    <audio src={props.src} controls>
+      <track kind="captions" />
+    </audio>
+  ),
+}));
 let generation = 1;
 let account: string | undefined = "alice";
 let ready: Promise<void> = Promise.resolve();
@@ -90,7 +98,7 @@ test("mounted same-account narration waits for old session cleanup before regist
   });
   generation = 2;
   const view = await render(<DeviceNarrationPanel documentId="doc" />);
-  await click(button("Generate on this device"));
+  await click(button("Narrate on this device"));
   await act(async () => {
     await new Promise((r) => setTimeout(r, 20));
   });
@@ -120,7 +128,7 @@ test("unmount while session storage is preparing cancels the queued narration ad
     release = r;
   });
   const view = await render(<DeviceNarrationPanel documentId="doc" />);
-  await click(button("Generate on this device"));
+  await click(button("Narrate on this device"));
   await view.unmount();
   release();
   await act(async () => {

@@ -1,6 +1,14 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NarrationView } from "./view";
+import type { AudioPlayerProps } from "~/components/ui/audio-player";
+mock.module("~/components/ui/audio-player", () => ({
+  AudioPlayer: (props: AudioPlayerProps) => (
+    <audio src={props.src} controls>
+      <track kind="captions" />
+    </audio>
+  ),
+}));
+const { NarrationView } = await import("./view");
 const noop = () => {};
 test("narration UI discloses maximum, partial failure recovery, reserved uncertainty, and free saved playback controls", () => {
   const view = (screen: Parameters<typeof NarrationView>[0]["screen"]) =>
@@ -9,6 +17,7 @@ test("narration UI discloses maximum, partial failure recovery, reserved uncerta
         screen={screen}
         onQuote={noop}
         onAccept={noop}
+        onDismiss={noop}
         onCancel={noop}
         onSaved={noop}
       />,
@@ -27,7 +36,7 @@ test("narration UI discloses maximum, partial failure recovery, reserved uncerta
         policy: "Technical failures return all credits.",
       },
     }),
-  ).toContain("Accept maximum 12.950 credits");
+  ).toContain("Start · up to 12.95 credits");
   const job = {
     id: "op",
     state: "refunded" as const,
@@ -38,17 +47,17 @@ test("narration UI discloses maximum, partial failure recovery, reserved uncerta
     parts: [{ id: "part1", text: "retained", audio: "AA==", seconds: 1 }],
     policy: "Trial cancellation terms",
   };
-  expect(view({ kind: "job", job })).toContain("Review retry quote");
+  expect(view({ kind: "job", job })).toContain("Try again");
   expect(view({ kind: "job", job: { ...job, state: "unknown" } })).toContain(
     "reserved until reconciliation",
   );
   expect(
     view({ kind: "job", job: { ...job, state: "unknown" } }),
-  ).not.toContain("Review narration quote");
+  ).not.toContain("Narrate this document");
   expect(view({ kind: "job", job: { ...job, state: "settled" } })).toContain(
     "controls=",
   );
   expect(view({ kind: "job", job: { ...job, state: "saved" } })).toContain(
-    "Replay is free",
+    "replay is free",
   );
 });

@@ -1,6 +1,14 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { DeviceNarrationView } from "./device-view";
+import type { AudioPlayerProps } from "~/components/ui/audio-player";
+mock.module("~/components/ui/audio-player", () => ({
+  AudioPlayer: (props: AudioPlayerProps) => (
+    <audio src={props.src} controls>
+      <track kind="captions" />
+    </audio>
+  ),
+}));
+const { DeviceNarrationView } = await import("./device-view");
 import { audioFromPCM } from "./portable";
 test("actual device narration view shows held uncertainty, foreground limits and keyless completed sync/playback", () => {
   const state = {
@@ -147,9 +155,7 @@ test("E1 Controller Resume shows a renewed bounded continuation and retained pla
       (button) => button.textContent === "Resume generation",
     );
     expect(resume).toBeDefined();
-    expect(host.textContent).toContain(
-      "Each Resume starts a new 20-minute continuation",
-    );
+    expect(host.textContent).toContain("Each Resume runs up to 20 minutes");
     const originalAudio = host.querySelector("audio")?.getAttribute("src");
     await act(async () => {
       resume?.click();
@@ -157,7 +163,7 @@ test("E1 Controller Resume shows a renewed bounded continuation and retained pla
     });
     expect(requests).toEqual(["Remaining chapter"]);
     expect(host.textContent).toContain("Generating in the foreground");
-    expect(host.textContent).toContain("1 of 2 parts retained");
+    expect(host.textContent).toContain("1 of 2 parts on this device");
     const completed = new Promise<void>((resolve) => {
       const unsubscribe = flow.subscribe(() => {
         if (flow.state()?.status === "completed") {
@@ -170,11 +176,12 @@ test("E1 Controller Resume shows a renewed bounded continuation and retained pla
       release();
       await completed;
     });
-    expect(host.textContent).toContain("2 of 2 parts retained");
+    expect(host.textContent).toContain("2 of 2 parts on this device");
     expect(host.querySelector("audio")?.getAttribute("src")).toBe(
       originalAudio,
     );
-    expect(host.querySelectorAll("audio")).toHaveLength(2);
+    expect(host.querySelectorAll("audio")).toHaveLength(1);
+    expect(host.textContent).toContain("Part 1 of 2");
     expect(host.textContent).toContain("Sync completed recording");
     expect(host.textContent).not.toContain("Resume generation");
     expect(flow.state()?.created).toBe(1000);

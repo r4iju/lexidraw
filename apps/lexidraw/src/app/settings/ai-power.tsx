@@ -105,11 +105,6 @@ export function AiPowerSection({
       <h2 id="ai-power-title" className="text-title font-semibold">
         AI power
       </h2>
-      <MigrationNotice phase="advance" />
-      <p className="text-sm text-muted-foreground">
-        One account preference, one provider. Keys stay in memory on this device
-        until sign out or page closure. Another device needs its own key.
-      </p>
       <QueryNotice access={access} retry={() => void query.refetch()} />
       <Label htmlFor="power-source">Preferred power source</Label>
       <Select
@@ -138,27 +133,34 @@ export function AiPowerSection({
           </SelectItem>
         </SelectContent>
       </Select>
-      {save.isError && <p role="alert">Could not save the power preference.</p>}
-      <p className="text-sm">
-        Local text generation is unavailable in this browser. Public Pro
-        purchases are not available yet. This direct text connection check is
-        independent of Pro. Other AI capabilities are not enabled by this check.
+      <p className="text-sm text-muted-foreground">
+        {query.data.mode === "pro"
+          ? "AI features use your Pro credits, including narration."
+          : query.data.mode === "byok"
+            ? "Text uses your OpenRouter key on this device; OpenRouter bills you."
+            : "Runs on this device. Text generation isn't supported in this browser yet."}
       </p>
+      {save.isError && <p role="alert">Could not save the power preference.</p>}
       <ProTrialSection accountId={accountId} initialStatus={proStatus} />
       {ownKey && (
         <>
-          <p className="text-sm">
-            OpenRouter text only. Images, narration, and paid search are
-            unavailable here. Validation sends a small paid text request
-            directly to OpenRouter. Your provider bills usage; no Pro credits
-            are used. Provider permissions or browser access can prevent
-            connection.
-          </p>
           <p role="status" className="text-sm">
             {credential
               ? "Key present on this device."
               : "No key on this device."}
           </p>
+          <details className="text-sm text-muted-foreground">
+            <summary className="cursor-pointer select-none">
+              About your key
+            </summary>
+            <p className="mt-1">
+              OpenRouter text only; images, narration and paid search are
+              unavailable here. Keys stay in memory on this device until sign
+              out or page closure, so another device needs its own key.
+              Validation sends a small paid text request directly to OpenRouter,
+              which bills it; no Pro credits are used.
+            </p>
+          </details>
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => {
@@ -224,6 +226,7 @@ export function AiPowerSection({
           {activity.text}
         </p>
       )}
+      <MigrationNotice phase="advance" />
     </section>
   );
 }
