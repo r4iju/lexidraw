@@ -1,6 +1,5 @@
 declare module "pdf-parse";
 declare module "mammoth";
-declare module "undici";
 
 // Only `scripts/sync-excalidraw-fonts.ts` uses it, to decompress the editor's
 // WOFF2 faces into the TrueType files resvg can read.

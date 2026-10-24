@@ -123,7 +123,10 @@ test("cached running narration warns about stale progress and retries only its r
     expect(generate).not.toHaveBeenCalled();
     expect(cancel).not.toHaveBeenCalled();
     await click(button("Cancel generation"));
-    expect(cancel).toHaveBeenCalledWith({ id: "owned-operation" });
+    expect(cancel).toHaveBeenCalledWith({
+      id: "owned-operation",
+      delivery: "url",
+    });
   } finally {
     await view.unmount();
   }

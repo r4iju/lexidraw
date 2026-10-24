@@ -1738,6 +1738,16 @@ export class ProLedger {
     );
     return rows[0];
   }
+  /** Duration from the stored WAV's base64 length, without reading the audio out of the database. */
+  async narrationPartSeconds(account: string, attempt: string) {
+    const [row] = await this.query(
+      "SELECT length(json_extract(a.result,'$.audio')) AS size, substr(json_extract(a.result,'$.audio'),-2) AS tail FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=? AND a.id=? AND o.feature='narration' AND a.state='completed'",
+      [account, attempt],
+    );
+    if (!row) throw new ProError("Narration part not found");
+    const padding = (String(row.tail).match(/=/g) ?? []).length;
+    return ((Number(row.size) / 4) * 3 - padding - 44) / 48000;
+  }
   async narrationPart(account: string, attempt: string) {
     const row = (
       await this.query(

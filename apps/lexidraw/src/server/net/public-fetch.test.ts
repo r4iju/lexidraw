@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import { createServer } from "node:http";
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import type { Resolve } from "@packages/lib/public-address";
 import { directHop, fetchPublic, type Hop, NotPublic } from "./public-fetch";
 
@@ -129,6 +129,30 @@ describe("fetching for a user", () => {
 });
 
 describe("a direct hop", () => {
+  test("refuses an unsolicited Brotli response before exposing its body", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-encoding": "br" });
+      response.end(brotliCompressSync("an ordinary article"));
+    }).listen(0, "127.0.0.1");
+    await new Promise((listening) => server.once("listening", listening));
+    const { port } = server.address() as { port: number };
+    try {
+      const read = async () => {
+        const response = await directHop(
+          new URL(`http://pinned.example:${port}/`),
+          { address: "127.0.0.1", family: 4 },
+          { headers: new Headers({ "accept-encoding": "identity" }) },
+        );
+        return response.text();
+      };
+      await expect(read()).rejects.toThrow(
+        "Unsupported response content encoding",
+      );
+    } finally {
+      server.close();
+    }
+  });
+
   test("connects to the address checked, whatever the name resolves to now, and unpacks the body", async () => {
     const server = createServer((request, response) => {
       response.writeHead(200, { "content-encoding": "gzip" });

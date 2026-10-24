@@ -20,18 +20,18 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
   const operationEnabled =
     !!id && activity.kind !== "quote" && activity.kind !== "saved";
   const operation = api.narration.operation.useQuery(
-    { id: id ?? "" },
+    { id: id ?? "", delivery: "url" },
     {
       enabled: operationEnabled,
       retry: false,
       refetchInterval: (q) =>
         ["running", "reserved"].includes(q.state.data?.state ?? "")
-          ? 1000
+          ? 3000
           : false,
     },
   );
   const saved = api.narration.saved.useQuery(
-    { documentId },
+    { documentId, delivery: "url" },
     { enabled: activity.kind === "saved", retry: false },
   );
   const generate = api.narration.generate.useMutation({
@@ -116,6 +116,7 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
           )
             generate.mutate({
               documentId,
+              delivery: "url",
               idempotencyKey: activity.key,
               acceptedMaximum: quote.data.maximum,
               acceptedRevision: quote.data.revision,
@@ -123,7 +124,7 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
             });
         }}
         onCancel={() => {
-          if (id) cancel.mutate({ id });
+          if (id) cancel.mutate({ id, delivery: "url" });
         }}
         onSaved={() => setActivity({ kind: "saved" })}
       />

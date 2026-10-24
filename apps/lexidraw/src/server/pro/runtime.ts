@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ProLedger } from "./ledger";
 import { sandboxConfig } from "./billing-config";
 import { appleSandboxConfig } from "./apple-runtime-config";
+import { NARRATION_BOOK } from "~/lib/narration/contracts";
 let instance: ProLedger | undefined;
 export function proLedger() {
   if (!instance) {
@@ -21,6 +22,11 @@ export function proLedger() {
         now: Date.now,
         sandboxBillingAvailable: sandboxConfig(process.env) !== null,
         appleSandboxAvailable: appleSandboxConfig(process.env) !== null,
+        // Preflighted 2026-10-24: Gemini honours maxOutputTokens for this book (docs/private-pro-narration.md).
+        supplierBooks: () => ({
+          verification: "verified-server",
+          narration: NARRATION_BOOK,
+        }),
       },
     );
   }

@@ -90,7 +90,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   let documentAccess = true;
   const routerDeps = {
     ledger: () => ledger,
-    executor,
+    executor: () => executor,
     source: async () => mode,
     read: async (_a: string, id: string) => {
       if (!documentAccess || id !== "doc")
@@ -594,7 +594,7 @@ test("period creation pins narration customer rates through updates, renewal quo
     const q = await f.caller("alice").quote({ documentId: "doc" });
     expect(q).toMatchObject({
       periodId: period,
-      version: "private-narration-2026-10-v1",
+      version: "private-narration-2026-10-v2",
       maximum: 12_950_000,
     });
     const old = await f.caller("alice").generate({
@@ -820,7 +820,7 @@ test("useful cached later parts are delivered even when the earlier missing part
       planned: 2,
       charged: 0,
     });
-    expect(failed.parts[0]).toMatchObject({ text: "b", audio: wav() });
+    expect(failed.parts[0]).toMatchObject({ text: "b.", audio: wav() });
     f.setText("Edited again.");
     expect(await f.reader("alice").saved({ documentId: "doc" })).toMatchObject({
       id: failed.id,
@@ -910,7 +910,7 @@ for (const uncertain of [false, true]) {
     let dispatches = 0;
     const router = createNarrationRouter({
       ledger: () => f.ledger,
-      executor: f.executor,
+      executor: () => f.executor,
       source: async () => "pro",
       read: async () => "A calm reading.",
       dispatch: async (account, id) => {
@@ -955,3 +955,78 @@ for (const uncertain of [false, true]) {
     }
   });
 }
+
+test("a long document plans speakable sentence-bounded parts within the current book", async () => {
+  const f = await fixture();
+  try {
+    const sentence = (i: number) =>
+      `Sentence ${i} explains how the factory turns specifications into working software without review.`;
+    const body = Array.from({ length: 90 }, (_, i) => sentence(i)).join(" ");
+    const text = `See [Simon's notes](https://example.com/notes) and ![chart](https://example.com/c.png) first.[^1]\n\n## Heading\n\n${body}\n\n[^1]: https://example.com/source`;
+    expect(Buffer.byteLength(text)).toBeGreaterThan(6000);
+    await f.grant("alice");
+    const q = await f.executor.quote("alice", text);
+    expect(q.plan.length).toBeGreaterThan(8);
+    for (const part of q.plan) {
+      expect(Array.from(part.text).length).toBeLessThanOrEqual(500);
+      expect(part.text).not.toContain("http");
+      expect(part.text).not.toContain("#");
+      expect(part.text.trim()).toMatch(/[.!?]$/);
+    }
+    expect(q.plan[0]?.text).toStartWith(
+      "See Simon's notes and first. Heading. Sentence 0",
+    );
+    expect(q.plan.map((p) => p.text).join(" ")).toContain(sentence(89));
+  } finally {
+    f.client.close();
+  }
+});
+
+test("budgeted steps pause between parts and url delivery carries no inline audio", async () => {
+  const f = await fixture();
+  try {
+    const text = Array.from(
+      { length: 20 },
+      (_, i) =>
+        `Part ${i} of a document that is long enough to need several narration parts in total.`,
+    ).join(" ");
+    f.setText(text);
+    await f.grant("alice");
+    const q = await f.executor.quote("alice", text);
+    expect(q.plan.length).toBeGreaterThanOrEqual(3);
+    const prepared = await f.executor.prepare(
+      "alice",
+      "doc",
+      text,
+      "budget",
+      q.maximum,
+      q.revision,
+      q.periodId,
+    );
+    const id = required(prepared.id);
+    expect(await f.executor.step("alice", id, 2)).toEqual({
+      state: "running",
+      more: true,
+    });
+    expect(f.calls()).toBe(2);
+    const progress = await f.caller("alice").operation({ id, delivery: "url" });
+    expect(progress).toMatchObject({
+      state: "running",
+      made: 2,
+      planned: q.plan.length,
+    });
+    for (const part of progress.parts) {
+      expect(part.audio).toBeUndefined();
+      expect(part.url).toStartWith("/api/narration/parts/");
+      expect(part.seconds).toBe(1);
+    }
+    let result = await f.executor.step("alice", id, 2);
+    while (result.more) result = await f.executor.step("alice", id, 2);
+    expect(result).toEqual({ state: "settled", more: false });
+    expect(f.calls()).toBe(q.plan.length);
+    const inline = await f.caller("alice").operation({ id });
+    expect(inline.parts[0]?.audio).toBe(wav());
+  } finally {
+    f.client.close();
+  }
+});
