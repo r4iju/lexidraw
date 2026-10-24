@@ -72,7 +72,6 @@ const env = createEnv({
         ]),
       ),
     ),
-    ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
     // Optional org/global LLM keys used as fallbacks when user-level keys are absent
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_API_KEY: z.string().optional(),
@@ -116,7 +115,6 @@ const env = createEnv({
   runtimeEnv: {
     REACT_SCAN_ENABLED: process.env.REACT_SCAN_ENABLED,
     NEXT_PUBLIC_UNSPLASH_APP_NAME: process.env.NEXT_PUBLIC_UNSPLASH_APP_NAME,
-    ANALYZE: process.env.ANALYZE,
     NEXT_PUBLIC_NODE_ENV: process.env.NODE_ENV,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,

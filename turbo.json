@@ -1,7 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
-    "ANALYZE",
     "AWS_LAMBDA_JS_RUNTIME",
     "BACKUP_ENCRYPTION_KEY",
     "CRON_SECRET",

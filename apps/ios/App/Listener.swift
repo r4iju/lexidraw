@@ -107,8 +107,8 @@ final class Listener {
           voiceDescription = speech.voiceDescription
         case .device(let job):
           let files = ProNarrationFiles()
-          recording = try files.recording(job)
           proFiles = files
+          recording = try await files.recording(job)
           let scope = try await session.deviceNarrationPlaybackScope(document: file.id)
           positionKey = NarrationPlayback(job: job, source: .device, scope: scope).resumeID(file: file.id)
           voiceDescription = "Saved device recording. Replay is free without a key."
@@ -142,17 +142,24 @@ final class Listener {
     let job = playback.job
     stop()
     let files = ProNarrationFiles()
-    do {
-      let recording = try files.recording(job)
-      proFiles = files
-      positionKey = playback.resumeID(file: file.id)
-      voiceDescription = job.policy
-      state = .loaded(file, recording)
-      queue(
-        from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true)
-    } catch {
-      files.clear()
-      state = .failed(file, "Saved narration could not be opened. Reload it without regenerating.")
+    proFiles = files
+    state = .preparing(file, .started)
+    // Pro parts are downloaded before playback starts.
+    preparing = Task {
+      do {
+        let recording = try await files.recording(job, from: session)
+        try Task.checkCancellation()
+        positionKey = playback.resumeID(file: file.id)
+        voiceDescription = job.policy
+        state = .loaded(file, recording)
+        queue(
+          from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true)
+      } catch is CancellationError {
+      } catch {
+        guard !Task.isCancelled else { return }
+        files.clear()
+        state = .failed(file, "Saved narration could not be opened. Reload it without regenerating.")
+      }
     }
   }
 
