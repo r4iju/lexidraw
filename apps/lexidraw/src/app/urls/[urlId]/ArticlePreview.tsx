@@ -8,13 +8,14 @@ import { parseLinkElements } from "./link-elements";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
-import { Settings } from "lucide-react";
+import { Settings, Volume2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import { toast } from "sonner";
+import { ProNarrationPanel } from "~/lib/narration/panel";
+import { DeviceNarrationPanel } from "~/lib/narration/device-panel";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -36,7 +37,7 @@ export default function ArticlePreview({
   preferredPlaybackRate,
   canGenerateAudio,
 }: Props) {
-  const { distilled, url: sourceUrl } = useMemo(
+  const { distilled } = useMemo(
     () => parseLinkElements(entity.elements),
     [entity.elements],
   );
@@ -63,12 +64,6 @@ export default function ArticlePreview({
       ? savedTts.stitchedUrl
       : undefined;
   const segments = Array.isArray(savedTts?.segments) ? savedTts.segments : [];
-
-  function handleGenerateAudio() {
-    toast.message(
-      "Legacy article narration is unavailable. Saved recordings remain available. Manage AI Power for supported document narration.",
-    );
-  }
 
   if (!distilled?.contentHtml) {
     return null;
@@ -97,31 +92,27 @@ export default function ArticlePreview({
       <div className="flex flex-col gap-2">
         {canGenerateAudio && (
           <div className="flex w-full justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={handleGenerateAudio}
-              disabled={!sourceUrl}
-            >
-              New narration unavailable
-            </Button>
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="icon" variant="outline">
-                  <Settings className="size-4" />
-                  <span className="sr-only">Audio settings</span>
+                <Button variant="outline" className="gap-2">
+                  <Volume2 className="size-4" />
+                  Narrate
                 </Button>
               </PopoverTrigger>
-              <PopoverContent>
-                <p>
-                  Legacy article voice services are unavailable. Saved
-                  recordings remain available. Use AI Power for supported
-                  document narration.
-                </p>
-                <a href="/settings#settings-ai-power">
-                  Manage AI Power and playback speed
-                </a>
+              <PopoverContent
+                align="end"
+                className="flex max-h-[70vh] w-[min(92vw,24rem)] flex-col gap-4 overflow-y-auto"
+              >
+                <ProNarrationPanel documentId={entity.id} />
+                <DeviceNarrationPanel documentId={entity.id} />
               </PopoverContent>
             </Popover>
+            <Button size="icon" variant="outline" asChild>
+              <a href="/settings#settings-ai-power">
+                <Settings className="size-4" />
+                <span className="sr-only">Playback settings</span>
+              </a>
+            </Button>
           </div>
         )}
         {stitchedUrl ? (
