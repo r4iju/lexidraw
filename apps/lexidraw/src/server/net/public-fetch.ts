@@ -1,6 +1,6 @@
 import * as http from "node:http";
 import * as https from "node:https";
-import { Readable } from "node:stream";
+import { pipeline, type Readable } from "node:stream";
 import * as zlib from "node:zlib";
 import {
   type Address,
@@ -9,7 +9,11 @@ import {
   reachable,
   systemResolve,
 } from "@packages/lib/public-address";
-import { type ProxyAgent, fetch as undiciFetch } from "undici";
+import {
+  type Dispatcher,
+  type ProxyAgent,
+  request as undiciRequest,
+} from "undici";
 
 export type ProxyDispatcher = InstanceType<typeof ProxyAgent>;
 
@@ -81,7 +85,7 @@ export const directHop: Hop = (url, address, { method, headers, signal }) =>
       url,
       {
         method: method ?? "GET",
-        headers: Object.fromEntries(headers),
+        headers: supportedHeaders(headers),
         signal,
         agent: false,
         lookup: (_host, options, callback) => {
@@ -98,14 +102,19 @@ export const directHop: Hop = (url, address, { method, headers, signal }) =>
         for (const [name, value] of Object.entries(message.headers))
           for (const each of [value ?? []].flat()) answered.append(name, each);
         const empty = status === 204 || status === 304 || method === "HEAD";
-        settle(
-          new Response(
-            empty
-              ? null
-              : streamOf(unpacked(message, answered.get("content-encoding"))),
-            { status, headers: answered },
-          ),
-        );
+        try {
+          settle(
+            new Response(
+              empty
+                ? null
+                : streamOf(unpacked(message, answered.get("content-encoding"))),
+              { status, headers: answered },
+            ),
+          );
+        } catch (error) {
+          message.destroy();
+          fail(error);
+        }
       },
     );
     request.on("error", fail);
@@ -121,66 +130,81 @@ function streamOf(body: Readable): ReadableStream<Uint8Array> {
       else stream.enqueue(value);
     },
     cancel: async () => {
+      body.destroy();
       await chunks.return?.();
     },
   });
 }
 
+function supportedHeaders(headers: Headers): Record<string, string> {
+  const supported = new Headers(headers);
+  supported.set("accept-encoding", "gzip, deflate");
+  return Object.fromEntries(supported);
+}
+
 function unpacked(body: Readable, encoding: string | null): Readable {
+  if (encoding?.split(",").some((part) => part.trim().toLowerCase() === "br"))
+    throw new Error("Unsupported response content encoding");
+  let decoder: Readable & NodeJS.WritableStream;
   switch (encoding?.trim().toLowerCase()) {
     case "gzip":
     case "x-gzip":
-      return body.pipe(zlib.createGunzip());
+      decoder = zlib.createGunzip();
+      break;
     case "deflate":
-      return body.pipe(zlib.createInflate());
-    case "br":
-      return body.pipe(zlib.createBrotliDecompress());
+      decoder = zlib.createInflate();
+      break;
     default:
       return body;
   }
+  return pipeline(body, decoder, () => {
+    // The reader sees decoder errors; pipeline also closes the upstream.
+  });
 }
 
 /** Through a proxy, which looks the host up again on its own network. */
 export const proxyHop =
   (dispatcher: ProxyDispatcher): Hop =>
   async (url, _address, { method, headers, signal }) => {
-    const upstream = await undiciFetch(url, {
-      method,
-      headers: Array.from(headers),
+    // Fetch decodes upstream bodies before callers can reject an encoding.
+    const upstream = await undiciRequest(url, {
+      method: method as Dispatcher.HttpMethod | undefined,
+      headers: supportedHeaders(headers),
       signal,
-      redirect: "manual",
       dispatcher,
     });
     const answered = new Headers();
-    for (const [name, value] of upstream.headers)
-      if (name.toLowerCase() !== "set-cookie") answered.append(name, value);
-    for (const cookie of upstream.headers.getSetCookie())
-      answered.append("set-cookie", cookie);
-    const body = upstream.body
-      ? streamOf(Readable.fromWeb(upstream.body))
-      : null;
-    const response =
-      upstream.status === 0
-        ? Response.error()
-        : new Response(body, {
-            status: upstream.status,
-            statusText: upstream.statusText,
-            headers: answered,
-          });
-    return withResponseMetadata(response, upstream);
+    for (const [name, value] of Object.entries(upstream.headers))
+      for (const each of [value ?? []].flat()) answered.append(name, each);
+    const status = upstream.statusCode;
+    const empty = status === 204 || status === 304 || method === "HEAD";
+    try {
+      const body = empty
+        ? null
+        : streamOf(unpacked(upstream.body, answered.get("content-encoding")));
+      if (empty) upstream.body.resume();
+      return withResponseMetadata(
+        new Response(body, {
+          status,
+          statusText: http.STATUS_CODES[status] ?? "",
+          headers: answered,
+        }),
+        url.href,
+      );
+    } catch (error) {
+      upstream.body.destroy();
+      throw error;
+    }
   };
 
-function withResponseMetadata(
-  response: Response,
-  upstream: Awaited<ReturnType<typeof undiciFetch>>,
-): Response {
+function withResponseMetadata(response: Response, url: string): Response {
   return Object.defineProperties(response, {
-    url: { get: () => upstream.url },
-    redirected: { get: () => upstream.redirected },
-    type: { get: () => upstream.type },
+    url: { get: () => url },
+    redirected: { get: () => false },
+    type: { get: () => "basic" },
     clone: {
       value: () =>
-        withResponseMetadata(Response.prototype.clone.call(response), upstream),
+        withResponseMetadata(Response.prototype.clone.call(response), url),
     },
   });
 }
