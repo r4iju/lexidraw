@@ -24,8 +24,11 @@ struct CredentialGuardedTransport: ClientTransport {
     case "document-fontData": return 4 << 20
     case "entities-load": return 16 << 20
     case "narration.operation", "narration.saved", "narration.generate", "narration.cancel", "deviceNarration.saved":
-      // Eight validated base64 WAV parts plus their bounded text/envelope.
+      // Device recordings carry base64 WAV parts; Pro jobs list part links.
       return 64 << 20
+    case "narration.part":
+      // One WAV part of at most 120 seconds.
+      return 5_760_044
     case "auth.getPowerPreference", "auth.setPowerPreference", "config.getAutocompleteConfig", "config.updateAutocompleteConfig", "pro.autocomplete", "pro.operation", "pro.cancel":
       return 1 << 16
     default:

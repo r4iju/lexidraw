@@ -57,10 +57,42 @@ import Testing
     guard case .job(let job) = flow.state else { Issue.record("Expected historical playable recording"); return }
     #expect(job.parts.first?.text == "Text before document edit")
     let files = ProNarrationFiles()
-    let recording = try files.recording(job)
+    let recording = try await files.recording(job)
     #expect(recording.parts.count == 1)
     files.clear()
     #expect(server.requests.count == 2)
+    #expect(server.requests.allSatisfy { $0.authorization == "Bearer lxd_kept" })
+  }
+}
+
+@Suite("Linked Pro narration parts") struct LinkedProNarrationTests {
+  @Test @MainActor func longSavedNarrationIsReadAsLinksAndDownloadedWithTheAccountToken() async throws {
+    let wav = String(decoding: Data("RIFF".utf8) + Data(repeating: 0, count: 44), as: UTF8.self)
+    let planned = 42
+    let server = FakeServer { request in
+      if request.url.path.hasPrefix("/api/narration/parts/") { return (200, wav) }
+      #expect(request.url.path.hasSuffix("narration.saved"))
+      #expect(request.url.query?.contains("delivery") == true)
+      let parts = (0..<planned).map {
+        ["text": "Part \($0)", "url": "/api/narration/parts/attempt-\($0)", "seconds": 30] as [String: Any]
+      }
+      let job: [String: Any] = ["id": "long", "state": "saved", "charged": 0, "quote": 0,
+        "made": planned, "planned": planned, "parts": parts, "policy": "Replay is free."]
+      let data = try JSONSerialization.data(withJSONObject: ["result": ["data": ["json": job]]])
+      return (200, String(decoding: data, as: UTF8.self))
+    }
+    let session = try TestServer.session(server)
+    let flow = NativeNarrationFlow(session: session, document: "long-doc")
+    await flow.saved()
+    guard case .job(let job) = flow.state else { Issue.record("Expected linked recording"); return }
+    let files = ProNarrationFiles()
+    let recording = try await files.recording(job, from: session)
+    #expect(recording.parts.count == planned)
+    #expect(recording.parts.allSatisfy { $0.audio.isFileURL })
+    #expect(try Data(contentsOf: recording.parts[41].audio).prefix(4) == Data("RIFF".utf8))
+    files.clear()
+    let downloads = server.requests.filter { $0.url.path.hasPrefix("/api/narration/parts/") }
+    #expect(downloads.count == planned)
     #expect(server.requests.allSatisfy { $0.authorization == "Bearer lxd_kept" })
   }
 }
