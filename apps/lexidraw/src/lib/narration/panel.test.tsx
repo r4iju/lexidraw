@@ -2,6 +2,14 @@ import { afterAll, expect, mock, test } from "bun:test";
 import type { RouterOutputs } from "~/trpc/shared";
 import { button, click, installDom, render } from "~/test/dom";
 import { narrationScreen } from "./query-screen";
+import type { AudioPlayerProps } from "~/components/ui/audio-player";
+mock.module("~/components/ui/audio-player", () => ({
+  AudioPlayer: (props: AudioPlayerProps) => (
+    <audio src={props.src} controls>
+      <track kind="captions" />
+    </audio>
+  ),
+}));
 
 installDom();
 const originalFetch = globalThis.fetch;
@@ -110,11 +118,11 @@ test("cached running narration warns about stale progress and retries only its r
   expect(mapped.kind).toBe("job");
   const view = await render(<ProNarrationPanel documentId="owned-document" />);
   try {
-    expect(document.body.textContent).toContain("1 of 2 parts ready");
+    expect(document.body.textContent).toContain("Narrating · 1 of 2 parts");
     expect(document.querySelector("audio[controls]")?.getAttribute("src")).toBe(
       "data:audio/wav;base64,AA==",
     );
-    expect(button("Cancel generation")).toBeDefined();
+    expect(button("Stop narrating")).toBeDefined();
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
       "Showing the last known progress",
     );
@@ -122,7 +130,7 @@ test("cached running narration warns about stale progress and retries only its r
     expect(reads.operation).toHaveBeenCalledTimes(1);
     expect(generate).not.toHaveBeenCalled();
     expect(cancel).not.toHaveBeenCalled();
-    await click(button("Cancel generation"));
+    await click(button("Stop narrating"));
     expect(cancel).toHaveBeenCalledWith({
       id: "owned-operation",
       delivery: "url",
@@ -146,14 +154,14 @@ test("cached narration reads retain useful content, disclose failures, and never
     await click(button("Retry latest"));
     expect(reads.capability).toHaveBeenCalledTimes(1);
     expect(reads.latest).toHaveBeenCalledTimes(1);
-    await click(button("Play saved narration"));
+    await click(button("Saved recording"));
     queries.saved.error = new Error("Saved refresh failed");
     await view.rerender(<ProNarrationPanel documentId="owned-document" />);
     expect(document.querySelector("audio[controls]")).not.toBeNull();
     expect(document.body.textContent).toContain(
       "Showing the last saved recording",
     );
-    expect(button("Review narration quote")?.disabled).toBe(true);
+    expect(button("Narrate again")?.disabled).toBe(true);
     await click(button("Retry saved"));
     expect(reads.saved).toHaveBeenCalledTimes(1);
     queries.capability.error = null;
@@ -170,19 +178,21 @@ test("cached narration reads retain useful content, disclose failures, and never
       version: "private-narration-2026-10-v1",
       policy: "Technical failures return credits",
     };
-    await click(button("Review narration quote"));
+    await click(button("Narrate again"));
     queries.quote.error = new Error("Quote refresh failed");
     await view.rerender(<ProNarrationPanel documentId="owned-document" />);
-    expect(document.body.textContent).toContain("1 parts need synthesis");
-    expect(button("Accept maximum 12.950 credits")?.disabled).toBe(true);
-    await click(button("Accept maximum 12.950 credits"));
+    expect(document.body.textContent).toContain(
+      "2 parts · up to 4 min · 1 already made",
+    );
+    expect(button("Start · up to 12.95 credits")?.disabled).toBe(true);
+    await click(button("Start · up to 12.95 credits"));
     await click(button("Retry quote"));
     expect(reads.quote).toHaveBeenCalledTimes(1);
     expect(generate).not.toHaveBeenCalled();
     queries.quote.error = null;
     queries.capability.error = new Error("Unknown capability");
     await view.rerender(<ProNarrationPanel documentId="owned-document" />);
-    expect(button("Accept maximum 12.950 credits")?.disabled).toBe(true);
+    expect(button("Start · up to 12.95 credits")?.disabled).toBe(true);
     expect(generate).not.toHaveBeenCalled();
   } finally {
     await view.unmount();
@@ -199,14 +209,12 @@ test("failed owned narration cancellation remains visible with retained audio an
   const before = generate.mock.calls.length;
   const view = await render(<ProNarrationPanel documentId="owned-document" />);
   try {
-    await click(button("Cancel generation"));
+    await click(button("Stop narrating"));
     await view.rerender(<ProNarrationPanel documentId="owned-document" />);
-    expect(document.body.textContent).toContain(
-      "Cancellation is not confirmed",
-    );
+    expect(document.body.textContent).toContain("Stop not confirmed yet");
     expect(document.querySelector("audio[controls]")).not.toBeNull();
     await click(button("Refresh cancellation status"));
-    expect(button("Cancel generation")).toBeDefined();
+    expect(button("Stop narrating")).toBeDefined();
     expect(generate.mock.calls.length).toBe(before);
   } finally {
     await view.unmount();

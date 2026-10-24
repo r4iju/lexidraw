@@ -1,111 +1,155 @@
+import { Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
+import { Progress } from "~/components/ui/progress";
+import { PartsPlayer } from "./parts-player";
 import type { NarrationScreen } from "./ui";
+
+type Job = Extract<NarrationScreen, { kind: "job" }>["job"];
+
+const credits = (subcredits: number) =>
+  new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(
+    subcredits / 1_000_000,
+  );
+
+/** What a job's state means to the listener, in a few words. */
+function jobStatus(job: Job) {
+  switch (job.state) {
+    case "settled":
+    case "saved":
+      return "Ready · replay is free";
+    case "cancelled":
+      return `Stopped · ${job.made} of ${job.planned} parts kept`;
+    case "refunded":
+      return "Failed · all reserved credits returned";
+    case "unknown":
+      return "Provider outcome uncertain · credits reserved until reconciliation";
+    default:
+      return `Narrating · ${job.made} of ${job.planned} parts`;
+  }
+}
+
+/** Terms behind the numbers, there for whoever wants them. */
+function Terms({ children }: { children: string }) {
+  return (
+    <details className="text-sm text-muted-foreground">
+      <summary className="cursor-pointer select-none">Billing details</summary>
+      <p className="mt-1">{children}</p>
+    </details>
+  );
+}
+
 export function NarrationView({
   screen,
+  notices,
   onQuote,
   onAccept,
+  onDismiss,
   onCancel,
   onSaved,
 }: {
   screen: NarrationScreen;
+  /** Failed reads and actions, shown under the heading. */
+  notices?: ReactNode;
   onQuote: () => void;
   onAccept: () => void;
+  onDismiss: () => void;
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const blocked = screen.generationBlocked;
   return (
     <section aria-label="Pro narration" className="space-y-3">
-      <h3 className="font-medium">Pro narration</h3>
-      {screen.kind === "busy" && <p role="status">Preparing narration…</p>}
-      {(screen.kind === "unavailable" || screen.kind === "error") && (
-        <p role="status">{screen.message}</p>
+      <h3 className="text-sm font-medium">Pro narration</h3>
+      {notices}
+      {screen.kind === "busy" && (
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          Preparing…
+        </p>
       )}
-      {screen.kind === "idle" && (
-        <p>
-          Review a quote before generating cloud audio. Saved recordings play
-          without generation credits.
+      {(screen.kind === "unavailable" || screen.kind === "error") && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {screen.message}
         </p>
       )}
       {screen.kind === "quote" && (
-        <>
-          <p>
-            {screen.quote.missing} parts need synthesis; {screen.quote.cached}{" "}
-            parts are retained. Audio is bounded to{" "}
-            {Math.ceil(screen.quote.maxSeconds / 60)} minutes.
+        <div className="space-y-3 rounded-md border border-border p-3">
+          <p className="text-sm">
+            {screen.quote.missing + screen.quote.cached} parts · up to{" "}
+            {Math.ceil(screen.quote.maxSeconds / 60)} min
+            {screen.quote.cached > 0 &&
+              ` · ${screen.quote.cached} already made`}
           </p>
-          <p>{screen.quote.policy}</p>
-          <Button onClick={onAccept} disabled={screen.generationBlocked}>
-            Accept maximum {(screen.quote.maximum / 1_000_000).toFixed(3)}{" "}
-            credits
-          </Button>
-        </>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onAccept} disabled={blocked}>
+              Start · up to {credits(screen.quote.maximum)} credits
+            </Button>
+            <Button variant="ghost" onClick={onDismiss}>
+              Not now
+            </Button>
+          </div>
+          <Terms>{screen.quote.policy}</Terms>
+        </div>
       )}
       {screen.kind === "job" && (
-        <>
-          <p role="status">
-            {screen.job.made} of {screen.job.planned} parts ready.{" "}
-            {screen.job.state === "unknown"
-              ? "Provider outcome is uncertain. Credits remain reserved until reconciliation. No new request will be sent."
-              : screen.job.state === "refunded"
-                ? "Generation failed. All reserved credits were returned; completed parts are retained."
-                : screen.job.state === "cancelled"
-                  ? "Generation cancelled. Completed parts are retained."
-                  : screen.job.state === "settled" ||
-                      screen.job.state === "saved"
-                    ? "Saved recording. Replay is free."
-                    : "Generating audio…"}
-          </p>
-          <p>{screen.job.policy}</p>
-          {screen.job.parts.map((part, i) => (
-            <div key={part.id}>
-              <p id={`transcript-${part.id}`}>{part.text}</p>
-              {/* biome-ignore lint/a11y/useMediaCaption: The complete narration transcript is visible directly above each audio control. */}
-              <audio
-                aria-label={`Narration part ${i + 1}`}
-                aria-describedby={`transcript-${part.id}`}
-                controls
-                preload="metadata"
-                src={part.url ?? `data:audio/wav;base64,${part.audio}`}
-                // Long recordings are many parts; carry on to the next one.
-                onEnded={(event) => {
-                  const next =
-                    event.currentTarget.parentElement?.nextElementSibling?.querySelector(
-                      "audio",
-                    );
-                  void next?.play().catch(() => {});
-                }}
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <p role="status" className="text-sm">
+              {jobStatus(screen.job)}
+            </p>
+            {["running", "reserved"].includes(screen.job.state) && (
+              <Progress
+                className="h-1.5"
+                value={
+                  (screen.job.made / Math.max(1, screen.job.planned)) * 100
+                }
+                aria-label="Narration progress"
               />
-            </div>
-          ))}
-          {["running", "reserved"].includes(screen.job.state) && (
-            <Button variant="outline" onClick={onCancel}>
-              Cancel generation
-            </Button>
-          )}
-          {["refunded", "cancelled"].includes(screen.job.state) && (
-            <Button onClick={onQuote} disabled={screen.generationBlocked}>
-              Review retry quote
-            </Button>
-          )}
-        </>
+            )}
+          </div>
+          <PartsPlayer
+            label="Pro narration recording"
+            more={["running", "reserved"].includes(screen.job.state)}
+            parts={screen.job.parts.map((part) => ({
+              id: part.id,
+              text: part.text,
+              src: part.url ?? `data:audio/wav;base64,${part.audio}`,
+            }))}
+          />
+          <div className="flex flex-wrap gap-2">
+            {["running", "reserved"].includes(screen.job.state) && (
+              <Button variant="outline" onClick={onCancel}>
+                Stop narrating
+              </Button>
+            )}
+            {["refunded", "cancelled"].includes(screen.job.state) && (
+              <Button onClick={onQuote} disabled={blocked}>
+                Try again
+              </Button>
+            )}
+            {["saved", "settled"].includes(screen.job.state) && (
+              <Button variant="ghost" onClick={onQuote} disabled={blocked}>
+                Narrate again
+              </Button>
+            )}
+            {screen.job.state !== "saved" && (
+              <Button variant="ghost" onClick={onSaved}>
+                Saved recording
+              </Button>
+            )}
+          </div>
+          <Terms>{screen.job.policy}</Terms>
+        </div>
       )}
-      {screen.kind !== "busy" && (
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onSaved}>
-            Play saved narration
+      {(screen.kind === "idle" || screen.kind === "error") && (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onQuote} disabled={blocked}>
+            Narrate this document
           </Button>
-          {(screen.kind === "idle" ||
-            screen.kind === "error" ||
-            (screen.kind === "job" &&
-              ["saved", "settled"].includes(screen.job.state))) && (
-            <Button
-              variant="outline"
-              onClick={onQuote}
-              disabled={screen.generationBlocked}
-            >
-              Review narration quote
-            </Button>
-          )}
+          <Button variant="ghost" onClick={onSaved}>
+            Saved recording
+          </Button>
         </div>
       )}
     </section>

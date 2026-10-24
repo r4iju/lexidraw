@@ -151,7 +151,7 @@ test("static saved lane uses exact user-start audio and escapes original transcr
   const markup = renderToStaticMarkup(
     <SavedRecordingPlayback documentId="doc-1" screen={saved} />,
   );
-  expect(markup).toContain("Existing saved recording");
+  expect(markup).toContain("Saved recording");
   expect(markup).toContain(
     "Original &lt;script&gt;雪 &amp; hello&lt;/script&gt;",
   );
@@ -159,7 +159,7 @@ test("static saved lane uses exact user-start audio and escapes original transcr
   expect(audioProps.at(-1)).toEqual({
     src: "https://example.invalid/saved.mp3?x=%2F&y=1",
     autoPlay: false,
-    className: "min-w-xs",
+    className: "w-full",
   });
   expect(markup).not.toContain("Segments");
   expect(markup).not.toContain("Making the next part");
@@ -185,7 +185,7 @@ test("no-job Listen reads saved content while local and Pro fixture panels are u
   mounted = await render(<Page />);
   expect(manifestEnabled).toBe(true);
   expect(requireSaved()?.getAttribute("data-playing")).toBe("false");
-  expect(document.body.textContent).toContain("Existing saved recording");
+  expect(document.body.textContent).toContain("Saved recording");
   expect(document.body.textContent).toContain(
     "Original <script>雪 & hello</script>",
   );
@@ -335,7 +335,7 @@ test("STOP and malformed saved response hide only saved lane, none preserves gen
   await update(() => {
     recording = { kind: "none" };
   });
-  expect(document.body.textContent).not.toContain("Existing saved recording");
+  expect(document.body.textContent).not.toContain("Saved recording");
   expect(document.body.textContent).not.toContain(
     "Saved recording could not be read safely",
   );

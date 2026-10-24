@@ -213,17 +213,8 @@ function ScopedProTrial({ initialStatus, accountId }: TrialProps) {
       <ProBillingSection status={status.data} />
       <QueryNotice access={access} retry={() => void capability.refetch()} />
       {access.kind === "ready" && !access.data.available && (
-        <p role="status">
-          Pro text is Coming soon until provider access, quality and output
-          bounds are verified. Use device-key text or built-in local
-          capabilities where supported.
-        </p>
-      )}
-      {status.data.eligible && (
-        <p className="text-sm">
-          {status.data.entitled
-            ? "Private trial allowance active, shared with iOS."
-            : "Private eligibility is approved, but no active allowance is granted."}
+        <p role="status" className="text-sm text-muted-foreground">
+          Pro text is Coming soon.
         </p>
       )}
       {status.data.entitled &&

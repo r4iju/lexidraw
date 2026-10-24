@@ -1,6 +1,14 @@
 import { expect, mock, test } from "bun:test";
 import { button, click, installDom, render } from "~/test/dom";
 installDom();
+import type { AudioPlayerProps } from "~/components/ui/audio-player";
+mock.module("~/components/ui/audio-player", () => ({
+  AudioPlayer: (props: AudioPlayerProps) => (
+    <audio src={props.src} controls>
+      <track kind="captions" />
+    </audio>
+  ),
+}));
 import { createByokSession } from "../byok/session";
 let calls = 0,
   stored: string | null = null,
@@ -83,7 +91,7 @@ mock.module("~/trpc/react", () => ({
 const { DeviceNarrationPanel } = await import("./device-panel");
 test("unmount during original document read cannot admit late narration", async () => {
   const view = await render(<DeviceNarrationPanel documentId="doc" />);
-  await click(button("Generate on this device"));
+  await click(button("Narrate on this device"));
   expect(source).toHaveBeenCalledTimes(1);
   await view.unmount();
   release();

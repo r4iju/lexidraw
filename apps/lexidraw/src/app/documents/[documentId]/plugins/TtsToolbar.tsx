@@ -11,14 +11,7 @@ import {
   useState,
 } from "react";
 import { Button } from "~/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import { Headphones, Loader2, Play, Settings, Volume2 } from "lucide-react";
+import { Headphones, Play, Settings, Volume2 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { ListenPlayer } from "./ListenPlayer";
 import { useEntityId } from "~/hooks/use-entity-id";
@@ -28,9 +21,6 @@ import { ToolbarMenu, ToolbarTooltip } from "./ToolbarPlugin/toolbar";
 type Listen = {
   documentId: string;
   ready: boolean;
-  generating: boolean;
-  generate: () => void;
-  openSettings: () => void;
   playerOpen: boolean;
   setPlayerOpen: (open: boolean) => void;
   /** The control the player opens beside, while one is showing. */
@@ -73,8 +63,6 @@ export function ListenProvider({ children }: { children: ReactNode }) {
     },
   );
 
-  const isGeneratingAudio = false;
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playerAnchor, setPlayerAnchor] = useState<HTMLElement | null>(null);
 
@@ -83,9 +71,6 @@ export function ListenProvider({ children }: { children: ReactNode }) {
     (): Listen => ({
       documentId,
       ready,
-      generating: isGeneratingAudio,
-      generate: () => setSettingsOpen(true),
-      openSettings: () => setSettingsOpen(true),
       playerOpen,
       setPlayerOpen,
       setPlayerAnchor,
@@ -102,31 +87,13 @@ export function ListenProvider({ children }: { children: ReactNode }) {
         onOpenChange={setPlayerOpen}
         anchor={playerAnchor}
       />
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent size="md">
-          <DialogHeader>
-            <DialogTitle>Listen settings</DialogTitle>
-          </DialogHeader>
-          <p>
-            New narration follows your account AI Power preference. Legacy voice
-            services are unavailable. Saved recordings remain available.
-          </p>
-          <a href="/settings#settings-ai-power">
-            Manage AI Power and playback speed
-          </a>
-
-          <DialogClose asChild>
-            <Button variant="ghost">Close</Button>
-          </DialogClose>
-        </DialogContent>
-      </Dialog>
     </ListenContext.Provider>
   );
 }
 
 /** Listen's actions as menu items; `withPlay` adds playing, for More. */
 export function ListenItems({ withPlay = false }: { withPlay?: boolean }) {
-  const { generating, generate, openSettings, setPlayerOpen } = useListen();
+  const { setPlayerOpen } = useListen();
   return (
     <>
       {withPlay && (
@@ -138,21 +105,16 @@ export function ListenItems({ withPlay = false }: { withPlay?: boolean }) {
           Play from cursor
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem
-        className="gap-2"
-        onSelect={generate}
-        disabled={generating}
-      >
-        {generating ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Volume2 className="size-4" />
-        )}
-        New narration unavailable
+      {/* New narration starts in the player, beside what is already made. */}
+      <DropdownMenuItem className="gap-2" onSelect={() => setPlayerOpen(true)}>
+        <Volume2 className="size-4" />
+        New narration…
       </DropdownMenuItem>
-      <DropdownMenuItem className="gap-2" onSelect={openSettings}>
-        <Settings className="size-4" />
-        Listen settings…
+      <DropdownMenuItem className="gap-2" asChild>
+        <a href="/settings#settings-ai-power">
+          <Settings className="size-4" />
+          Playback settings
+        </a>
       </DropdownMenuItem>
     </>
   );

@@ -62,72 +62,76 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
     operationEnabled,
   });
   return (
-    <div>
-      {cancel.error &&
-        cancel.variables?.id === id &&
-        ["reserved", "running", "unknown"].includes(
-          operation.data?.state ?? "",
-        ) && (
-          <p role="alert">
-            Cancellation is not confirmed. Further work may still be running;
-            retained audio remains available.
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void operation.refetch()}
-            >
-              Refresh cancellation status
-            </Button>
-          </p>
-        )}
-      {generate.error && (
-        <p role="alert">
-          {generate.error.message} Retry acceptance to recover the same action.
-        </p>
-      )}
-      {screen.readErrors?.map((notice) => (
-        <div key={notice.query} role="alert">
-          <p>{notice.message}</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              void { capability, quote, latest, operation, saved }[
-                notice.query
-              ].refetch()
-            }
-          >
-            Retry {notice.query === "operation" ? "progress" : notice.query}
-          </Button>
-        </div>
-      ))}
-      <NarrationView
-        screen={screen}
-        onQuote={() => {
-          if (screen.generationBlocked) return;
-          setActivity({ kind: "quote", key: crypto.randomUUID() });
-          void utils.narration.quote.invalidate({ documentId });
-        }}
-        onAccept={() => {
-          if (
-            !screen.generationBlocked &&
-            activity.kind === "quote" &&
-            quote.data
-          )
-            generate.mutate({
-              documentId,
-              delivery: "url",
-              idempotencyKey: activity.key,
-              acceptedMaximum: quote.data.maximum,
-              acceptedRevision: quote.data.revision,
-              acceptedPeriod: quote.data.periodId,
-            });
-        }}
-        onCancel={() => {
-          if (id) cancel.mutate({ id, delivery: "url" });
-        }}
-        onSaved={() => setActivity({ kind: "saved" })}
-      />
-    </div>
+    <NarrationView
+      notices={
+        <>
+          {cancel.error &&
+            cancel.variables?.id === id &&
+            ["reserved", "running", "unknown"].includes(
+              operation.data?.state ?? "",
+            ) && (
+              <p role="alert" className="text-sm">
+                Stop not confirmed yet; made parts are kept.{" "}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => void operation.refetch()}
+                >
+                  Refresh cancellation status
+                </Button>
+              </p>
+            )}
+          {generate.error && (
+            <p role="alert" className="text-sm">
+              {generate.error.message} Start again to retry the same request.
+            </p>
+          )}
+          {screen.readErrors?.map((notice) => (
+            <p key={notice.query} role="alert" className="text-sm">
+              {notice.message}{" "}
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0"
+                onClick={() =>
+                  void { capability, quote, latest, operation, saved }[
+                    notice.query
+                  ].refetch()
+                }
+              >
+                Retry {notice.query === "operation" ? "progress" : notice.query}
+              </Button>
+            </p>
+          ))}
+        </>
+      }
+      screen={screen}
+      onQuote={() => {
+        if (screen.generationBlocked) return;
+        setActivity({ kind: "quote", key: crypto.randomUUID() });
+        void utils.narration.quote.invalidate({ documentId });
+      }}
+      onAccept={() => {
+        if (
+          !screen.generationBlocked &&
+          activity.kind === "quote" &&
+          quote.data
+        )
+          generate.mutate({
+            documentId,
+            delivery: "url",
+            idempotencyKey: activity.key,
+            acceptedMaximum: quote.data.maximum,
+            acceptedRevision: quote.data.revision,
+            acceptedPeriod: quote.data.periodId,
+          });
+      }}
+      onDismiss={() => setActivity({ kind: "idle" })}
+      onCancel={() => {
+        if (id) cancel.mutate({ id, delivery: "url" });
+      }}
+      onSaved={() => setActivity({ kind: "saved" })}
+    />
   );
 }

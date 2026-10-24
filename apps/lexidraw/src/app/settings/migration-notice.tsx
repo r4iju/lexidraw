@@ -8,21 +8,21 @@ export function MigrationNotice({ phase }: { phase: MigrationNoticePhase }) {
   if (!notice) return null;
 
   return (
-    <section
+    <details
       aria-labelledby="ai-power-migration-notice-title"
-      className="space-y-2"
+      className="rounded-md border border-border px-3 py-2 text-sm"
     >
-      <h3
+      <summary
         id="ai-power-migration-notice-title"
-        className="text-sm font-semibold"
+        className="cursor-pointer select-none font-medium"
       >
         {notice.title}
-      </h3>
-      {notice.paragraphs.map((paragraph) => (
-        <p key={paragraph} className="text-sm text-muted-foreground">
-          {paragraph}
-        </p>
-      ))}
-    </section>
+      </summary>
+      <div className="mt-2 space-y-2 text-muted-foreground">
+        {notice.paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+    </details>
   );
 }

@@ -1,32 +1,31 @@
 import type { DeviceCheckpoint, RecordingArtifact } from "./device-contracts";
-import {
-  DEVICE_NARRATION_POLICY,
-  DEVICE_NARRATION_UNAVAILABLE,
-} from "./portable";
+import { DEVICE_NARRATION_POLICY } from "./portable";
 import { Button } from "~/components/ui/button";
+import { PartsPlayer } from "./parts-player";
+
 export function RecordingControls({
   recording,
+  label = "Device recording",
 }: {
   recording: RecordingArtifact;
+  label?: string;
 }) {
   return (
-    <div>
-      {recording.parts.map((part, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: Completed recording parts have an immutable order.
-        <div key={index}>
-          <p>{part.text}</p>
-          {/* biome-ignore lint/a11y/useMediaCaption: The complete transcript is immediately above each audio control. */}
-          <audio
-            aria-label={`Recording part ${index + 1}`}
-            controls
-            preload="none"
-            src={`data:audio/wav;base64,${part.audio}`}
-          />
-        </div>
-      ))}
-    </div>
+    <PartsPlayer
+      label={label}
+      parts={recording.parts.map((part, index) => ({
+        id: String(index),
+        text: part.text,
+        src: `data:${recording.mimeType};base64,${part.audio}`,
+      }))}
+    />
   );
 }
+
+/**
+ * Narration made in this browser with the account's own OpenRouter key. It
+ * shows nothing while that is unavailable and nothing was started here.
+ */
 export function DeviceNarrationView({
   checkpoint,
   capabilityKnown = true,
@@ -44,6 +43,7 @@ export function DeviceNarrationView({
   onResume: () => void;
   onSync: () => void;
 }) {
+  if (!checkpoint && !(capabilityKnown && available)) return null;
   const completed =
     checkpoint?.parts.flatMap((p) =>
       p.kind === "completed"
@@ -56,65 +56,70 @@ export function DeviceNarrationView({
   const all = !!checkpoint && completed.length === checkpoint.parts.length;
   return (
     <section aria-label="Device narration" className="space-y-3">
-      <h3>My OpenRouter narration</h3>
-      <p>{DEVICE_NARRATION_POLICY}</p>
-      {capabilityKnown && !available && <p>{DEVICE_NARRATION_UNAVAILABLE}</p>}
-      {!keyAvailable && (
-        <p>
-          Set up your key on this device before generating or resuming. Sync and
-          playback do not need it.
-        </p>
-      )}
-      {!checkpoint && (
-        <Button disabled={!available || !keyAvailable} onClick={onStart}>
-          Generate on this device
-        </Button>
-      )}
+      <h3 className="text-sm font-medium">Your OpenRouter key</h3>
       {checkpoint && (
-        <p>
-          {completed.length} of {checkpoint.parts.length} parts retained on this
-          device.{" "}
-          {checkpoint.status === "saved"
-            ? "Saved to your account. Playback is free."
-            : "Unfinished or unsynced work is local only."}
+        <p className="text-sm">
+          {completed.length} of {checkpoint.parts.length} parts on this device
+          {checkpoint.status === "saved" && " · saved to your account"}
         </p>
       )}
       {unknown && (
-        <p role="status">
-          Provider outcome uncertain. The request may still be billed. No
-          automatic repeat will occur. Check the original provider result before
-          recovering this part.
-        </p>
-      )}
-      {checkpoint?.status === "paused" && !all && !unknown && (
-        <p role="status">
-          Paused on this device. Choose Resume generation to continue with the
-          current key. Each Resume starts a new 20-minute continuation for
-          pending parts only; completed audio is kept.
+        <p role="status" className="text-sm text-muted-foreground">
+          One part's outcome is uncertain and may still be billed. It won't be
+          repeated automatically.
         </p>
       )}
       {checkpoint?.status === "running" && (
-        <p role="status">Generating in the foreground…</p>
+        <p role="status" className="text-sm">
+          Generating in the foreground…
+        </p>
       )}
-      {checkpoint && !all && !unknown && checkpoint.status !== "running" && (
-        <Button disabled={!available || !keyAvailable} onClick={onResume}>
-          Resume generation
-        </Button>
+      {checkpoint?.status === "paused" && !all && !unknown && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Paused. Each Resume runs up to 20 minutes; made parts are kept.
+        </p>
       )}
-      {all && checkpoint?.status !== "saved" && (
-        <Button disabled={checkpoint?.status === "syncing"} onClick={onSync}>
-          {checkpoint?.status === "sync_failed"
-            ? "Retry sync"
-            : checkpoint?.status === "syncing"
-              ? "Syncing…"
-              : "Sync completed recording"}
-        </Button>
+      {!keyAvailable && !all && (
+        <p className="text-sm text-muted-foreground">
+          <a
+            href="/settings#settings-ai-power"
+            className="underline underline-offset-2"
+          >
+            Add your key
+          </a>{" "}
+          on this device to generate.
+        </p>
       )}
+      <div className="flex flex-wrap gap-2">
+        {!checkpoint && (
+          <Button disabled={!available || !keyAvailable} onClick={onStart}>
+            Narrate on this device
+          </Button>
+        )}
+        {checkpoint && !all && !unknown && checkpoint.status !== "running" && (
+          <Button disabled={!available || !keyAvailable} onClick={onResume}>
+            Resume generation
+          </Button>
+        )}
+        {all && checkpoint?.status !== "saved" && (
+          <Button disabled={checkpoint?.status === "syncing"} onClick={onSync}>
+            {checkpoint?.status === "sync_failed"
+              ? "Retry sync"
+              : checkpoint?.status === "syncing"
+                ? "Syncing…"
+                : "Sync completed recording"}
+          </Button>
+        )}
+      </div>
       {completed.length > 0 && (
         <RecordingControls
           recording={{ mimeType: "audio/wav", parts: completed }}
         />
       )}
+      <details className="text-sm text-muted-foreground">
+        <summary className="cursor-pointer select-none">How this works</summary>
+        <p className="mt-1">{DEVICE_NARRATION_POLICY}</p>
+      </details>
     </section>
   );
 }
