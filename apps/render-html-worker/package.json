@@ -19,7 +19,7 @@
     "@packages/lib": "workspace:*",
     "@sparticuz/chromium": "^153.0.0",
     "linkedom": "0.18.12",
-    "next": "16.3.6",
+    "next": "16.4.2",
     "puppeteer-core": "^25.11.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
