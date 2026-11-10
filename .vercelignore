@@ -1,0 +1,4 @@
+# Never upload local env files with a CLI deploy. The Vercel project env is the
+# only source of deployment values. The committed example stays.
+.env*
+!.env.example

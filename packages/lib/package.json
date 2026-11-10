@@ -23,7 +23,7 @@
   "dependencies": {
     "@packages/env": "workspace:*",
     "@vercel/blob": "^2.8.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "typesVersions": {
     "*": {
