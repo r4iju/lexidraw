@@ -30,8 +30,26 @@ export type AuthDeps = {
 };
 
 const isDev = process.env.NODE_ENV !== "production";
-// should only flip to true never force false
-const shouldTrustHost = isDev || Boolean(env.TRUST_HOST);
+
+/** Lexidraw's own sign-in, sign-out and error pages, in every environment. */
+export const AUTH_PAGES = {
+  signIn: "/signin",
+  signOut: "/signout",
+  error: "/signin-error",
+} as const;
+
+/**
+ * Host trust and pages for Auth.js. `TRUST_HOST` only ever flips trust to
+ * true and never forces it false. Otherwise Auth.js decides, and it trusts the
+ * host on Vercel. The pages don't depend on it.
+ */
+export function hostAndPages(opts: { isDev: boolean; trustHost: boolean }) {
+  return {
+    ...(opts.isDev || opts.trustHost ? { trustHost: true as const } : {}),
+    pages: { ...AUTH_PAGES },
+  };
+}
+
 const cookies = isDev
   ? {
       sessionToken: {
@@ -88,18 +106,9 @@ export function createAuth({ db, github, apple }: AuthDeps) {
   const config = async (
     request: NextRequest | undefined,
   ): Promise<NextAuthConfig> => ({
-    ...(shouldTrustHost ? { trustHost: true } : {}),
+    ...hostAndPages({ isDev, trustHost: Boolean(env.TRUST_HOST) }),
     cookies,
     adapter,
-    pages: {
-      ...(shouldTrustHost
-        ? {
-            signIn: "/signin",
-            signOut: "/signout",
-            error: "/signin-error",
-          }
-        : {}),
-    },
     callbacks: {
       session: ({ session, token }) => {
         return {
