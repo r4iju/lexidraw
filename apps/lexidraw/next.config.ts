@@ -4,6 +4,73 @@ import { withWorkflow } from "workflow/next";
 import { reactCompiler } from "./react-compiler";
 import { EXCALIDRAW_ASSETS } from "./src/lib/excalidraw-assets";
 
+function origin(url: string | undefined) {
+  if (!url) return [];
+  try {
+    return [new URL(url).origin];
+  } catch {
+    // A relative address is our own origin, which 'self' covers.
+    return [];
+  }
+}
+
+/**
+ * Observed in the browser console, not reported to an endpoint, until it is
+ * shown to allow everything the app means to load and can be enforced.
+ */
+function reportOnlyPolicy() {
+  const storage = [
+    env.SUPABASE_S3_ENDPOINT,
+    env.VERCEL_BLOB_STORAGE_HOST,
+    env.VERCEL_BLOB_STORAGE_HOST_DEV,
+  ].flatMap(origin);
+  const directives = {
+    "default-src": ["'self'"],
+    // Next's streamed payload and bootstrap are inline scripts, and pages
+    // prerendered as static shells cannot carry a per-request nonce. HTML
+    // blocks run in a WebAssembly interpreter.
+    "script-src": [
+      "'self'",
+      "'unsafe-inline'",
+      "'wasm-unsafe-eval'",
+      "https://platform.twitter.com",
+      ...(env.REACT_SCAN_ENABLED ? ["https://unpkg.com"] : []),
+    ],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    // Documents show images from any link they were given.
+    "img-src": ["'self'", "data:", "blob:", "https:"],
+    "media-src": ["'self'", "data:", "blob:", ...storage],
+    "font-src": [
+      "'self'",
+      "data:",
+      "https://fonts.gstatic.com",
+      // Excalidraw lists this fallback in every font face after our own copy,
+      // and the browser checks each listed source even when it never loads it.
+      "https://esm.sh/@excalidraw/",
+    ],
+    "frame-src": [
+      "'self'",
+      "https://www.youtube-nocookie.com",
+      "https://www.figma.com",
+      "https://platform.twitter.com",
+      ...origin(env.NEXT_PUBLIC_CODE_MODE_RUNNER_URL),
+    ],
+    "worker-src": ["'self'", "blob:"],
+    "connect-src": [
+      "'self'",
+      ...storage,
+      "https://vercel.com/api/blob/",
+      "https://images.unsplash.com",
+      "https://openrouter.ai",
+    ],
+    "object-src": ["'none'"],
+    "base-uri": ["'self'"],
+  };
+  return Object.entries(directives)
+    .map(([name, sources]) => [name, ...sources].join(" "))
+    .join("; ");
+}
+
 const config = {
   webpack: (config) => {
     // exclude non-js files from being processed by webpack
@@ -59,7 +126,27 @@ const config = {
   },
   productionBrowserSourceMaps: true,
   headers: async () => [
+    {
+      source: "/:path*",
+      headers: [
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        // Not 'none': the document screenshot route frames our own pages.
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      ],
+    },
+    {
+      source: "/:path((?!api(?:/|$)).*)",
+      headers: [
+        {
+          key: "Content-Security-Policy-Report-Only",
+          value: reportOnlyPolicy(),
+        },
+      ],
+    },
     // Framed, the approval could be clicked by someone who cannot see it.
+    // After the site-wide framing headers, so these replace them.
     {
       source: "/native-sign-in",
       headers: [
