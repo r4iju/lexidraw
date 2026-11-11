@@ -705,17 +705,9 @@ export const legacyDocumentRetentionV1 = sqliteTable(
     derivedFields: blob("derivedFields", { mode: "buffer" }).notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.sourceSetId, table.sourceTable, table.sourceId],
-    }),
-    check(
-      "LegacyDocumentRetentionV1_contractVersion",
-      sql`contractVersion = 1`,
-    ),
-    check(
-      "LegacyDocumentRetentionV1_status",
-      sql`status IN ('retained','converted')`,
-    ),
+    primaryKey({ columns: [table.sourceSetId, table.sourceTable, table.sourceId] }),
+    check("LegacyDocumentRetentionV1_contractVersion", sql`contractVersion = 1`),
+    check("LegacyDocumentRetentionV1_status", sql`status IN ('retained','converted')`),
   ],
 );
 
@@ -728,21 +720,13 @@ export const legacyDocumentRetentionBatchV1 = sqliteTable(
     documentCount: integer("documentCount").notNull(),
     sharedDocumentCount: integer("sharedDocumentCount").notNull(),
   },
-  (table) => [
-    unique("LegacyDocumentRetentionBatchV1_sourceIdentity_unique").on(
-      table.sourceIdentity,
-    ),
-  ],
+  (table) => [unique("LegacyDocumentRetentionBatchV1_sourceIdentity_unique").on(table.sourceIdentity)],
 );
 
-export type LegacyDocumentRetentionV1 =
-  typeof legacyDocumentRetentionV1.$inferSelect;
-export type NewLegacyDocumentRetentionV1 =
-  typeof legacyDocumentRetentionV1.$inferInsert;
-export type LegacyDocumentRetentionBatchV1 =
-  typeof legacyDocumentRetentionBatchV1.$inferSelect;
-export type NewLegacyDocumentRetentionBatchV1 =
-  typeof legacyDocumentRetentionBatchV1.$inferInsert;
+export type LegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferSelect;
+export type NewLegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferInsert;
+export type LegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferSelect;
+export type NewLegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferInsert;
 
 export const legacyDocumentConversionV1 = sqliteTable(
   "LegacyDocumentConversionV1",
