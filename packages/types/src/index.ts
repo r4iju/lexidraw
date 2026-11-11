@@ -10,6 +10,7 @@ export * from "./tool-schemas.js";
 export * from "./base-schemas.js";
 export * from "./agent-events.js";
 export * from "./drawing-files.js";
+export * from "./entity-path.js";
 
 type DocumentPayload = {
   elements: string;

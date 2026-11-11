@@ -221,7 +221,7 @@ describe("a picture the app sends", () => {
 describe("a document the app makes", () => {
   test("is made with its markdown in one request", async () => {
     await callerOf(OWNER).create({
-      id: "eimp_notes",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c01",
       entityType: "document",
       title: "Groceries",
       markdown: "Milk\n\n- eggs",
@@ -230,7 +230,7 @@ describe("a document the app makes", () => {
     const [notes] = await db
       .select()
       .from(schema.entities)
-      .where(eq(schema.entities.id, "eimp_notes"));
+      .where(eq(schema.entities.id, "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c01"));
     expect(notes?.title).toBe("Groceries");
     const blocks = JSON.parse(notes?.elements ?? "{}").root.children;
     expect(blocks.map((block: { type: string }) => block.type)).toEqual([
@@ -243,13 +243,15 @@ describe("a document the app makes", () => {
     const url = await sentPicture(PNG);
 
     await callerOf(OWNER).create({
-      id: "eimp_photo",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c02",
       entityType: "document",
       title: "Whiteboard",
       markdown: `From the meeting\n\n![](${url})`,
     });
 
-    expect(await recordedUploads("eimp_photo")).toMatchObject([
+    expect(
+      await recordedUploads("5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c02"),
+    ).toMatchObject([
       {
         userId: OWNER,
         fileName: decodeURIComponent(new URL(url).pathname.slice(1)),
@@ -263,7 +265,7 @@ describe("a document the app makes", () => {
 
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_script",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c03",
         entityType: "document",
         markdown: `![](${url})`,
       }),
@@ -273,7 +275,7 @@ describe("a document the app makes", () => {
     const made = await db
       .select()
       .from(schema.entities)
-      .where(eq(schema.entities.id, "eimp_script"));
+      .where(eq(schema.entities.id, "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c03"));
     expect(made).toEqual([]);
   });
 
@@ -285,7 +287,7 @@ describe("a document the app makes", () => {
 
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_unsent",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c04",
         entityType: "document",
         markdown: `![](${url})`,
       }),
@@ -296,25 +298,27 @@ describe("a document the app makes", () => {
     const theirs = await sentPicture(PNG, READER);
 
     await callerOf(OWNER).create({
-      id: "eimp_borrowed",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c05",
       entityType: "document",
       markdown: `![](${theirs})`,
     });
 
-    expect(await recordedUploads("eimp_borrowed")).toEqual([]);
+    expect(
+      await recordedUploads("5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c05"),
+    ).toEqual([]);
   });
 
   test("takes markdown only for a document, and not beside its content", async () => {
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_md_drawing",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c06",
         entityType: "drawing",
         markdown: "Hi",
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_md_both",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c07",
         entityType: "document",
         elements: "{}",
         markdown: "Hi",

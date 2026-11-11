@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
+import { entityHref } from "~/lib/entity-types";
 import {
   Dialog,
   DialogClose,
@@ -38,7 +39,7 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
         onSuccess: async () => {
           await revalidateDashboard();
           const afterDeleteHref = metadata?.parentId
-            ? `/dashboard/${metadata.parentId}`
+            ? entityHref("directory", metadata.parentId)
             : "/dashboard";
           router.replace(afterDeleteHref);
           toast.success(`Deleted “${entity.title}”.`);

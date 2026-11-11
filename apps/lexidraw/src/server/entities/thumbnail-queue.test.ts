@@ -52,7 +52,7 @@ async function queued(id: string, write: () => Promise<unknown>) {
 }
 
 test("document create, editor save and each markdown write queue a current thumbnail", async () => {
-  const id = "thumbq_doc";
+  const id = "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e01";
   await queued(id, () =>
     caller.entities.create({
       id,
@@ -103,9 +103,9 @@ test("document create, editor save and each markdown write queue a current thumb
     }),
   ).rejects.toMatchObject({ code: "CONFLICT" });
   expect(started).toHaveLength(count);
-  await queued("thumbq_direct", () =>
+  await queued("8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e02", () =>
     caller.documents.create({
-      id: "thumbq_direct",
+      id: "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e02",
       title: "Direct",
       elements: empty,
     }),
@@ -113,14 +113,16 @@ test("document create, editor save and each markdown write queue a current thumb
 });
 
 test("drawing create and put queue a thumbnail, directories do not", async () => {
-  await queued("thumbq_drawing", () =>
+  await queued("8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e03", () =>
     caller.drawings.create({
-      id: "thumbq_drawing",
+      id: "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e03",
       title: "Drawing",
       elements: [],
     }),
   );
-  const drawing = await caller.drawings.get({ id: "thumbq_drawing" });
+  const drawing = await caller.drawings.get({
+    id: "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e03",
+  });
   await queued(drawing.id, () =>
     caller.drawings.put({
       id: drawing.id,
@@ -132,7 +134,7 @@ test("drawing create and put queue a thumbnail, directories do not", async () =>
   );
   const count = started.length;
   await caller.entities.create({
-    id: "thumbq_dir",
+    id: "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e04",
     title: "Folder",
     entityType: "directory",
     elements: "{}",
@@ -142,7 +144,7 @@ test("drawing create and put queue a thumbnail, directories do not", async () =>
 });
 
 test("a slow thumbnail cannot replace the picture of a newer write", async () => {
-  const id = "thumbq_race";
+  const id = "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e05";
   await caller.entities.create({
     id,
     title: "Race",
@@ -175,7 +177,7 @@ test("a slow thumbnail cannot replace the picture of a newer write", async () =>
 });
 
 test("same-version saves preserve pending and processing jobs", async () => {
-  const id = "thumbq_duplicate";
+  const id = "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e06";
   await caller.documents.create({ id, title: "Duplicate", elements: empty });
   const { eq } = await import("drizzle-orm");
   for (const status of ["pending", "processing"] as const) {
@@ -201,7 +203,7 @@ test("writes finish while the workflow launcher is still pending", async () => {
   });
   try {
     const write = caller.documents.create({
-      id: "thumbq_slow",
+      id: "8d2f6a3c-1b4e-4c7d-9e0f-2a3b4c5d6e07",
       title: "Slow launch",
       elements: empty,
     });

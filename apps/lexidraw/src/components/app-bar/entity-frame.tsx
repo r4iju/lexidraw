@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { entityHref } from "~/lib/entity-types";
 import type { AppBarAccount } from "./account-menu";
 import { AppBar, Crumb, CrumbLink } from "./app-bar";
 import { EditableTitle } from "./editable-title";
@@ -41,7 +42,7 @@ export function EntityAppBar({
         compactOnPhone && frame.account
           ? parent
             ? {
-                href: `/dashboard/${parent.id}`,
+                href: entityHref("directory", parent.id),
                 label: `Back to ${parent.title || "Untitled"}`,
               }
             : { href: "/dashboard", label: "Back to Home" }
@@ -51,7 +52,7 @@ export function EntityAppBar({
         <>
           {frame.ancestors.map((ancestor) => (
             <Crumb key={ancestor.id}>
-              <CrumbLink href={`/dashboard/${ancestor.id}`}>
+              <CrumbLink href={entityHref("directory", ancestor.id)}>
                 {ancestor.title || "Untitled"}
               </CrumbLink>
             </Crumb>

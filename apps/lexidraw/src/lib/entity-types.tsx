@@ -1,4 +1,4 @@
-import type { EntityType } from "@packages/types";
+import { type EntityType, entityPath } from "@packages/types";
 import { Brush, File, Folder, Link2, type LucideIcon } from "lucide-react";
 
 type StoredType = `${EntityType}`;
@@ -8,18 +8,11 @@ type StoredType = `${EntityType}`;
  * it. The stored names ("directory", "url") stay in code and URLs; nothing a
  * person reads uses them.
  */
-const ENTITY_TYPES: Record<
-  StoredType,
-  { label: string; Icon: LucideIcon; path: (id: string) => string }
-> = {
-  document: { label: "Document", Icon: File, path: (id) => `/documents/${id}` },
-  drawing: { label: "Drawing", Icon: Brush, path: (id) => `/drawings/${id}` },
-  directory: {
-    label: "Folder",
-    Icon: Folder,
-    path: (id) => `/dashboard/${id}`,
-  },
-  url: { label: "Link", Icon: Link2, path: (id) => `/urls/${id}` },
+const ENTITY_TYPES: Record<StoredType, { label: string; Icon: LucideIcon }> = {
+  document: { label: "Document", Icon: File },
+  drawing: { label: "Drawing", Icon: Brush },
+  directory: { label: "Folder", Icon: Folder },
+  url: { label: "Link", Icon: Link2 },
 };
 
 function entityType(type: string) {
@@ -41,7 +34,7 @@ export function EntityTypeIcon({
   return <Icon className={className} aria-hidden="true" />;
 }
 
-/** The app path that opens an entity of `type`. */
+/** The app path that opens an entity of `type`; see {@link entityPath}. */
 export function entityHref(type: string, id: string) {
-  return entityType(type).path(id);
+  return entityPath(type, id);
 }

@@ -9,6 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import { z } from "zod";
 import type { ArticleNodeData, ArticleDistilled } from "@packages/types";
 import { Button } from "~/components/ui/button";
+import { entityHref } from "~/lib/entity-types";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import {
@@ -293,7 +294,7 @@ export function ArticleBlock({
         />
       ) : data.mode === "entity" ? (
         // The iOS app's generated WebArticleData reads this route's shape.
-        <BookmarkCard {...card} href={`/urls/${data.entityId}`} />
+        <BookmarkCard {...card} href={entityHref("url", data.entityId)} />
       ) : (
         <BookmarkCard {...card} href={data.url} />
       )}

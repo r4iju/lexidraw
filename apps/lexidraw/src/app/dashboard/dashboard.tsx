@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { AppBarAccount } from "~/components/app-bar/account-menu";
 import { Button } from "~/components/ui/button";
 import { may } from "~/lib/entity-access";
+import { entityHref } from "~/lib/entity-types";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -52,7 +53,9 @@ export async function Dashboard({
     ...(tags ? { tags } : {}),
     view,
   });
-  const pathname = `/dashboard/${directory?.id ?? ""}`;
+  const pathname = directory
+    ? entityHref("directory", directory.id)
+    : "/dashboard/";
   const tagList = tags ? tags.split(",").filter(Boolean) : [];
   const [entities, allTags] = await Promise.all([
     api.entities.list.query({

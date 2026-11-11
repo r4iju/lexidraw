@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NewEntityId } from "~/lib/entity-id";
 
 const nonBlank = (field: string) =>
   z
@@ -17,7 +18,7 @@ export const AfterHeading = nonBlank("afterHeading").describe(
 );
 
 export const CreateDocument = z.object({
-  id: z.string(),
+  id: NewEntityId,
   title: z.string(),
   elements: z.any(),
 });

@@ -34,6 +34,7 @@ import {
   storeDrawingFile,
 } from "~/server/drawings/files";
 import { resolveParentDirectory } from "~/server/entities/readable";
+import { NewEntityId } from "~/lib/entity-id";
 import { DRAWING_FILES_LIMIT, MAX_DRAWING_FILE_BYTES } from "@packages/types";
 import {
   DRAWING_FILE_ID,
@@ -474,7 +475,7 @@ export const drawingRouter = createTRPCRouter({
     })
     .input(
       z.object({
-        id: z.string().min(1).optional(),
+        id: NewEntityId.optional(),
         title: z.string().min(1),
         elements: DrawingElements.default([]),
         parentId: z.string().nullish(),
