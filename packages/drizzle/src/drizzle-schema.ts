@@ -255,8 +255,8 @@ export const nativeSignInCodes = sqliteTable(
   (table) => [index("NativeSignInCode_expiresAt_idx").on(table.expiresAt)],
 );
 
-// Credential sign-in attempts per fixed window. The key is the SHA-256 of
-// `email:<address>` or `ip:<address>`, so no email or IP is stored.
+// Credential sign-in counts per fixed window. The key is the SHA-256 of
+// `<counter>:<email, client or both>`, so no email or IP is stored.
 export const signInAttempts = sqliteTable(
   "SignInAttempts",
   {

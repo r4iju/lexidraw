@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
 import { drizzle } from "@packages/drizzle";
+import { isEntityId } from "~/lib/entity-id";
 import { entityTag } from "~/server/api/entity-cache";
 import { entityPreview } from "~/server/entity-preview";
 import { auth } from "~/server/auth";
@@ -21,6 +22,8 @@ const APPLE_WEB_APP: Metadata["appleWebApp"] = {
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const { documentId } = Params.parse(await props.params);
+  if (!isDocumentId(documentId))
+    return { title: "Document", appleWebApp: APPLE_WEB_APP };
   cacheTag(entityTag(documentId));
   const [document, preview] = await Promise.all([
     api.entities.getMetadata.query({ id: documentId }).catch(() => null),
@@ -43,6 +46,10 @@ const Params = z.object({
   documentId: z.string(),
 });
 
+// Case-insensitive because the pattern this replaced took uppercase ids, and
+// a document created with one before the contract must stay reachable.
+const isDocumentId = (id: string) => isEntityId(id.toLowerCase());
+
 type Props = {
   params: Promise<z.infer<typeof Params>>;
 };
@@ -51,15 +58,7 @@ export default async function DocumentPage(props: Props) {
   const param = await props.params;
   const { documentId } = Params.parse(param);
 
-  // Guard against sourcemaps or invalid IDs hitting this route
-  if (
-    documentId.endsWith(".map") ||
-    !/^[0-9a-fA-F-]{8}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{12}$/.test(
-      documentId,
-    )
-  ) {
-    return notFound();
-  }
+  if (!isDocumentId(documentId)) return notFound();
 
   // What this render is about, so a write to it anywhere — the browser, the
   // REST path, MCP, the CLI — drops this entry instead of leaving a stale

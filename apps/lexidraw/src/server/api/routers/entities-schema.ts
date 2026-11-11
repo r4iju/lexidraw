@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { NewEntityId } from "~/lib/entity-id";
 
 const BlankableType = z.enum(["drawing", "document", "directory"]);
 
 const createdEntity = z.object({
-  id: z.string(),
+  id: NewEntityId,
   entityType: z.enum([...BlankableType.options, "url"]),
   title: z
     .string()

@@ -3,7 +3,13 @@ import { describe, expect, test } from "bun:test";
 import { createServer } from "node:http";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 import type { Resolve } from "@packages/lib/public-address";
-import { directHop, fetchPublic, type Hop, NotPublic } from "./public-fetch";
+import {
+  directHop,
+  fetchPublic,
+  foundAddresses,
+  type Hop,
+  Refused,
+} from "./public-fetch";
 
 const resolve: Resolve = async (host) => [
   {
@@ -31,6 +37,42 @@ const moved = (location: string) => () =>
   new Response(null, { status: 302, headers: { location } });
 
 describe("fetching for a user", () => {
+  test("a name DNS has no address for is refused, a lookup that failed is not", () => {
+    const dnsError = (code: string) =>
+      ({
+        status: "rejected",
+        reason: Object.assign(new Error(code), { code }),
+      }) as const;
+    const none = dnsError("ENODATA");
+
+    expect(
+      foundAddresses("news.example", [
+        { status: "fulfilled", value: ["93.184.215.14"] },
+        dnsError("ETIMEOUT"),
+      ]),
+    ).toEqual([{ address: "93.184.215.14", family: 4 }]);
+    expect(
+      foundAddresses("gone.example", [dnsError("ENOTFOUND"), none]),
+    ).toEqual([]);
+    for (const code of ["ETIMEOUT", "ESERVFAIL", "ECONNREFUSED"])
+      expect(() =>
+        foundAddresses("news.example", [none, dnsError(code)]),
+      ).toThrow("Could not look up news.example");
+  });
+
+  test("a DNS outage fails the fetch without calling the URL refused", async () => {
+    const outage: Resolve = async () => {
+      throw new Error("Could not look up news.example");
+    };
+    const failure = await fetchPublic(
+      "https://news.example/post",
+      {},
+      { resolve: outage, hop: network({}) },
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(Refused);
+  });
+
   test("reads a public page from the address it checked", async () => {
     const asked: { at: string }[] = [];
     const response = await fetchPublic(
@@ -63,7 +105,7 @@ describe("fetching for a user", () => {
     ])
       await expect(
         fetchPublic(src, {}, { resolve, hop: network({}, asked) }),
-      ).rejects.toBeInstanceOf(NotPublic);
+      ).rejects.toBeInstanceOf(Refused);
     expect(asked).toEqual([]);
   });
 
@@ -91,8 +133,55 @@ describe("fetching for a user", () => {
       "https://news.example/to-name",
       "https://news.example/to-v6",
     ])
-      await expect(read(src)).rejects.toBeInstanceOf(NotPublic);
+      await expect(read(src)).rejects.toBeInstanceOf(Refused);
     expect(asked.every(({ at }) => at.endsWith("@ 93.184.215.14"))).toBe(true);
+  });
+
+  test("asks nothing of a public host on a port other than its scheme's", async () => {
+    const asked: { at: string }[] = [];
+    for (const src of [
+      "https://news.example:8443/post",
+      "http://news.example:22/",
+      "http://news.example:443/",
+      "https://93.184.215.14:80/",
+    ])
+      await expect(
+        fetchPublic(src, {}, { resolve, hop: network({}, asked) }),
+      ).rejects.toBeInstanceOf(Refused);
+    expect(asked).toEqual([]);
+  });
+
+  test("follows no redirect to another port", async () => {
+    const asked: { at: string }[] = [];
+    const hop = network(
+      {
+        "https://news.example/to-ssh": moved("http://news.example:22/"),
+        "https://news.example/to-admin": moved("https://news.example:8443/"),
+      },
+      asked,
+    );
+    for (const src of [
+      "https://news.example/to-ssh",
+      "https://news.example/to-admin",
+    ])
+      await expect(
+        fetchPublic(src, {}, { resolve, hop }),
+      ).rejects.toBeInstanceOf(Refused);
+    expect(asked.map(({ at }) => at)).toEqual([
+      "https://news.example/to-ssh @ 93.184.215.14",
+      "https://news.example/to-admin @ 93.184.215.14",
+    ]);
+  });
+
+  test("reads a page whose scheme's own port is spelled out", async () => {
+    const hop = network({
+      "https://news.example/post": () => new Response("secure"),
+      "http://news.example/post": () => new Response("plain"),
+    });
+    const read = async (src: string) =>
+      (await fetchPublic(src, {}, { resolve, hop })).text();
+    expect(await read("https://news.example:443/post")).toBe("secure");
+    expect(await read("http://news.example:80/post")).toBe("plain");
   });
 
   test("gives up on a redirect loop", async () => {

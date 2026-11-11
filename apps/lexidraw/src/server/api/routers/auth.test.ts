@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
@@ -58,14 +58,91 @@ describe("sign-up", () => {
     expect(row?.password).toStartWith("scrypt$");
   });
 
-  test("a duplicate email fails without logging the new hash", async () => {
+  test("a registered email in any case or spacing answers a conflict and leaves the account alone", async () => {
+    const [before] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, signUp.email));
+
+    for (const email of [signUp.email, "  SignUp@Example.TEST "]) {
+      await expect(
+        caller.signUp({
+          email,
+          name: "Intruder",
+          password: "Another-Horse-Battery-8!",
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    }
+
+    const rows = await db
+      .select()
+      .from(schema.users)
+      .where(sql`lower(${schema.users.email}) = ${signUp.email}`);
+    expect(rows).toEqual([before as NonNullable<typeof before>]);
+  });
+
+  test("an account created between the check and the insert answers a conflict, logging no hash", async () => {
+    const email = "signup_race@example.test";
+    await db.run(
+      sql.raw(`CREATE TRIGGER signup_race BEFORE INSERT ON "Users"
+        WHEN NEW.email = '${email}' AND NEW.id <> 'signup_race_winner'
+        BEGIN INSERT INTO "Users" (id, name, email) VALUES ('signup_race_winner', 'Winner', NEW.email); END`),
+    );
     const error = spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(caller.signUp(signUp)).rejects.toThrow("Something went wrong");
+    await expect(
+      caller.signUp({ ...signUp, email, name: "Loser" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
 
     const logged = error.mock.calls.map((args) => Bun.inspect(args)).join("\n");
     expect(logged).not.toContain("scrypt$");
-    expect(logged).toContain("[Auth]");
+  });
+
+  test("a new account's email is stored trimmed and lowercased", async () => {
+    await caller.signUp({ ...signUp, email: "  New.Person@Example.TEST " });
+
+    const rows = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(
+        sql`lower(${schema.users.email}) like '%new.person@example.test%'`,
+      );
+    expect(rows).toEqual([{ email: "new.person@example.test" }]);
+  });
+
+  test("a sign-up missing or failing any field is refused with the form's message and creates no user", async () => {
+    const valid = {
+      name: "Refused",
+      email: "refused@example.test",
+      password: "Correct-Horse-Battery-9!",
+    };
+    const { email: _email, ...noEmail } = valid;
+    const { name: _name, ...noName } = valid;
+    const { password: _password, ...noPassword } = valid;
+    const refused: [unknown, string | null][] = [
+      [{}, null],
+      [noEmail, null],
+      [noName, null],
+      [noPassword, null],
+      [{ ...valid, email: "" }, "Enter your email address."],
+      [{ ...valid, name: "" }, "Use at least 3 characters for your name."],
+      [{ ...valid, password: "" }, "Use at least 16 characters."],
+      [{ ...valid, email: "not-an-email" }, "Enter your email address."],
+      [
+        { ...valid, password: "correct-horse-battery-9!" },
+        "Add an uppercase letter.",
+      ],
+    ];
+    const users = async () => (await db.select().from(schema.users)).length;
+    const before = await users();
+
+    for (const [input, message] of refused) {
+      const attempt = expect(caller.signUp(input as typeof valid)).rejects;
+      await attempt.toMatchObject({ code: "BAD_REQUEST" });
+      if (message) await attempt.toThrow(message);
+    }
+
+    expect(await users()).toBe(before);
   });
 });
 
@@ -150,13 +227,19 @@ describe("saving settings", () => {
       .where(eq(schema.users.id, SETTINGS_USER));
     const stale = authRouter.createCaller({
       drizzle: {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              limit: async () => [{ config: { aiPower: { mode: "local" } } }],
-            }),
-          }),
-        }),
+        // Only the config read is stale; other reads see the database.
+        select: (fields: Record<string, unknown>) =>
+          "config" in fields
+            ? {
+                from: () => ({
+                  where: () => ({
+                    limit: async () => [
+                      { config: { aiPower: { mode: "local" } } },
+                    ],
+                  }),
+                }),
+              }
+            : db.select(fields as never),
         update: db.update.bind(db),
       },
       session: { user: { id: SETTINGS_USER } },
@@ -192,5 +275,35 @@ describe("saving settings", () => {
 
     await settings.updateProfile({ ...account, email: "moved@example.test" });
     expect(await verifiedAt()).toBeNull();
+  });
+
+  test("a profile cannot take an email another account holds, in any case", async () => {
+    await db.insert(schema.users).values({
+      id: "settings_email_holder",
+      name: "Holder",
+      email: "Settings.Holder@example.test",
+    });
+
+    for (const email of [
+      "settings.holder@example.test",
+      "Settings.Holder@example.test",
+    ])
+      await expect(
+        settings.updateProfile({ ...account, email }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    const [row] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    expect(row?.email).not.toMatch(/holder/i);
+
+    await settings.updateProfile({
+      ...account,
+      email: "Settings.Own@example.test",
+    });
+    await settings.updateProfile({
+      ...account,
+      email: "settings.own@example.test",
+    });
   });
 });

@@ -6,6 +6,7 @@ import type {
 } from "@lexical/markdown";
 import { $dfs } from "@lexical/utils";
 import { $createParagraphNode, $isTextNode, type LexicalNode } from "lexical";
+import { entityPath } from "@packages/types";
 import {
   $getFigure,
   $setFigure,
@@ -262,7 +263,9 @@ export const ARTICLE: ElementTransformer = {
     if (snap?.contentHtml) {
       const title = snap.title || "Article";
       const body = htmlToPlainText(snap.contentHtml || "");
-      const source = data.entityId ? `\n\n[Saved](/urls/${data.entityId})` : "";
+      const source = data.entityId
+        ? `\n\n[Saved](${entityPath("url", data.entityId)})`
+        : "";
       return `${$placeholderLine(node, title)}\n\n### ${title}${source}\n\n${body}`;
     }
     return `${$placeholderLine(node, data.entityId ?? "")}\n\nArticle: ${data.entityId}`;

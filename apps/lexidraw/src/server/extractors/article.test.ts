@@ -58,7 +58,7 @@ describe("distilling a link", () => {
     ])
       await expect(
         extractAndSanitizeArticle({ url, network, timeoutMs: 200 }),
-      ).rejects.toThrow("Only public http(s) addresses may be fetched");
+      ).rejects.toThrow("Not a public address");
     expect(asked).toEqual([]);
   });
 

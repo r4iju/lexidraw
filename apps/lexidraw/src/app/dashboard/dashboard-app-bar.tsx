@@ -4,6 +4,7 @@ import { EditableTitle } from "~/components/app-bar/editable-title";
 import { AppBar, Crumb, CrumbLink } from "~/components/app-bar/app-bar";
 import type { AppBarAccount } from "~/components/app-bar/account-menu";
 import type { EntityAccess } from "~/lib/entity-access";
+import { entityHref } from "~/lib/entity-types";
 import { Drop } from "./drop";
 
 type Folder = {
@@ -41,7 +42,9 @@ export function DashboardAppBar({
             {folder.ancestors.map((ancestor) => (
               <Crumb key={ancestor.id}>
                 <Drop folder={ancestor}>
-                  <CrumbLink href={`/dashboard/${ancestor.id}${suffix}`}>
+                  <CrumbLink
+                    href={`${entityHref("directory", ancestor.id)}${suffix}`}
+                  >
                     {ancestor.title || "Untitled"}
                   </CrumbLink>
                 </Drop>

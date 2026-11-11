@@ -41,6 +41,11 @@ const HANDLERS = { GET, POST, PUT, PATCH, DELETE } as const;
 const OWNER = "rest_owner";
 const WRITE_TOKEN = "lxd_rest_write";
 
+const NEW_DOC = "3c9e4a1b-2f6d-4b8e-9a0c-5d7e8f9a0b01";
+const DOOMED_DOC = "3c9e4a1b-2f6d-4b8e-9a0c-5d7e8f9a0b02";
+const NESTED_DOC = "3c9e4a1b-2f6d-4b8e-9a0c-5d7e8f9a0b03";
+const TRASHED_TAG_DOC = "3c9e4a1b-2f6d-4b8e-9a0c-5d7e8f9a0b04";
+
 /** A parsed JSON body; the assertion is what pins its shape down. */
 // biome-ignore lint/suspicious/noExplicitAny: arbitrary JSON, asserted on below
 type Json = Record<string, any>;
@@ -208,6 +213,63 @@ describe("a body the endpoint cannot read", () => {
   });
 });
 
+describe("an article URL the server will not fetch", () => {
+  test("is 400 for a private address, saying it is not public", async () => {
+    for (const url of [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://127.0.0.1/",
+      "http://[::1]/",
+      "http://localhost/",
+    ]) {
+      const { response, body } = await api("POST", "/articles/extract", {
+        body: { url },
+      });
+      expect(response.status).toBe(400);
+      expect(body.code).toBe("BAD_REQUEST");
+      expect(body.message).toContain("Not a public address");
+    }
+  });
+
+  test("is 400 from validation for a scheme other than http or https", async () => {
+    for (const url of [
+      "file:///etc/passwd",
+      "ftp://example.com/post",
+      "javascript:alert(1)",
+    ]) {
+      const { response, body } = await api("POST", "/articles/extract", {
+        body: { url },
+      });
+      expect(response.status).toBe(400);
+      expect(body.issues).toBeArray();
+    }
+  });
+});
+
+describe("a create with an id that is not a lowercase UUID", () => {
+  test.each([
+    ["/entities", { entityType: "document", title: "Planted" }],
+    ["/drawings", { title: "Planted" }],
+  ])("to %s is a 400 naming the id, and makes nothing", async (path, rest) => {
+    const { response, body } = await api("POST", path, {
+      body: { id: "../settings", ...rest },
+    });
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Input validation failed",
+      issues: [
+        { path: ["id"], message: "An entity id must be a lowercase UUID" },
+      ],
+    });
+    expect(
+      await db
+        .select()
+        .from(schema.entities)
+        .where(eq(schema.entities.id, "../settings")),
+    ).toEqual([]);
+  });
+});
+
 describe("an entity that is not there", () => {
   test("is named an entity, whatever type the caller had in mind", async () => {
     const { response, body } = await api("GET", "/entities/missing");
@@ -308,7 +370,7 @@ describe("a write over the API", () => {
   test("drops them for a create, under the directory it landed in", async () => {
     const { response, body } = await api("POST", "/entities", {
       body: {
-        id: "rest_doc_new",
+        id: NEW_DOC,
         title: "Made over REST",
         entityType: "document",
         elements: JSON.stringify(EMPTY_DOCUMENT),
@@ -316,14 +378,14 @@ describe("a write over the API", () => {
       },
     });
     expect(response.status).toBe(200);
-    expect(body.id).toBe("rest_doc_new");
-    expect(revalidated).toEqual(["entity:rest_doc_new", "entity:rest_dir"]);
+    expect(body.id).toBe(NEW_DOC);
+    expect(revalidated).toEqual([`entity:${NEW_DOC}`, "entity:rest_dir"]);
   });
 
   test("drops them for a delete", async () => {
     await api("POST", "/entities", {
       body: {
-        id: "rest_doc_doomed",
+        id: DOOMED_DOC,
         title: "Briefly",
         entityType: "document",
         elements: JSON.stringify(EMPTY_DOCUMENT),
@@ -331,9 +393,9 @@ describe("a write over the API", () => {
       },
     });
     revalidated.length = 0;
-    const { response } = await api("DELETE", "/entities/rest_doc_doomed");
+    const { response } = await api("DELETE", `/entities/${DOOMED_DOC}`);
     expect(response.status).toBe(200);
-    expect(revalidated).toEqual(["entity:rest_doc_doomed", "entity:rest_dir"]);
+    expect(revalidated).toEqual([`entity:${DOOMED_DOC}`, "entity:rest_dir"]);
   });
 });
 
@@ -341,7 +403,7 @@ describe("a write that changes a listing", () => {
   test("drops the listing above the directory it landed in", async () => {
     const { response } = await api("POST", "/entities", {
       body: {
-        id: "rest_doc_nested",
+        id: NESTED_DOC,
         title: "Filed two deep",
         entityType: "document",
         elements: JSON.stringify(EMPTY_DOCUMENT),
@@ -351,7 +413,7 @@ describe("a write that changes a listing", () => {
     expect(response.status).toBe(200);
     // The listing of `rest_dir` renders how many children `rest_sub` has.
     expect(revalidated).toEqual([
-      "entity:rest_doc_nested",
+      `entity:${NESTED_DOC}`,
       "entity:rest_sub",
       "entity:rest_dir",
     ]);
@@ -377,7 +439,7 @@ describe("the tag list", () => {
   test("leaves out a tag whose only entity is in the trash, until it is restored", async () => {
     const created = await api("POST", "/entities", {
       body: {
-        id: "rest_doc_trashed_tag",
+        id: TRASHED_TAG_DOC,
         title: "Tagged then trashed",
         entityType: "document",
         elements: JSON.stringify(EMPTY_DOCUMENT),
@@ -386,7 +448,7 @@ describe("the tag list", () => {
     });
     expect(created.response.status).toBe(200);
     for (const [id, tag] of [
-      ["rest_doc_trashed_tag", "rest-only-in-trash"],
+      [TRASHED_TAG_DOC, "rest-only-in-trash"],
       ["rest_doc", "rest-still-live"],
     ]) {
       const tagged = await api("PUT", `/entities/${id}/tags`, {
@@ -396,7 +458,7 @@ describe("the tag list", () => {
     }
     expect(await tags()).toContain("rest-only-in-trash");
 
-    const deleted = await api("DELETE", "/entities/rest_doc_trashed_tag");
+    const deleted = await api("DELETE", `/entities/${TRASHED_TAG_DOC}`);
     expect(deleted.response.status).toBe(200);
     expect(await tags()).not.toContain("rest-only-in-trash");
     expect(await tags()).toContain("rest-still-live");
@@ -405,7 +467,7 @@ describe("the tag list", () => {
     await db
       .update(schema.entities)
       .set({ deletedAt: null })
-      .where(eq(schema.entities.id, "rest_doc_trashed_tag"));
+      .where(eq(schema.entities.id, TRASHED_TAG_DOC));
     expect(await tags()).toContain("rest-only-in-trash");
   });
 

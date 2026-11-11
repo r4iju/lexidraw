@@ -20,10 +20,16 @@ const password = await import("./password");
 const rateLimit = await import("./sign-in-rate-limit");
 const { SIGN_IN_LIMITS } = rateLimit;
 
+const signIn = (email: string, password: string, ip: string | null) =>
+  authorizeCredentials({ email, password }, ip);
+
 const PASSWORD = "Correct-Horse-Battery-9!";
 
-async function seedUser(id: string, stored: string | null) {
-  const email = `${id}@example.test`;
+async function seedUser(
+  id: string,
+  stored: string | null,
+  email = `${id}@example.test`,
+) {
   await db
     .insert(schema.users)
     .values({ id, name: id, email, password: stored });
@@ -53,22 +59,20 @@ describe("credentials sign-in", () => {
   test("a legacy SHA-256 user signs in and is moved to scrypt", async () => {
     const email = await seedUser("cred_legacy", legacyPasswordHash(PASSWORD));
 
-    const user = await authorizeCredentials(email, PASSWORD, null);
+    const user = await signIn(email, PASSWORD, null);
 
     expect(user?.id).toBe("cred_legacy");
     expect(user).not.toHaveProperty("password");
     const upgraded = await storedPassword("cred_legacy");
     expect(upgraded).toStartWith("scrypt$");
-    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
-      "cred_legacy",
-    );
+    expect((await signIn(email, PASSWORD, null))?.id).toBe("cred_legacy");
   });
 
   test("a wrong password is refused and leaves the stored hash alone", async () => {
     const legacy = legacyPasswordHash(PASSWORD);
     const email = await seedUser("cred_wrong", legacy);
 
-    expect(await authorizeCredentials(email, `${PASSWORD}x`, null)).toBeNull();
+    expect(await signIn(email, `${PASSWORD}x`, null)).toBeNull();
     expect(await storedPassword("cred_wrong")).toBe(legacy);
   });
 
@@ -76,9 +80,7 @@ describe("credentials sign-in", () => {
     const current = await password.hashPassword(PASSWORD);
     const email = await seedUser("cred_current", current);
 
-    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
-      "cred_current",
-    );
+    expect((await signIn(email, PASSWORD, null))?.id).toBe("cred_current");
     expect(await storedPassword("cred_current")).toBe(current);
   });
 
@@ -86,10 +88,8 @@ describe("credentials sign-in", () => {
     const passwordless = await seedUser("cred_github", null);
     const verify = spyOn(password, "verifyPassword");
 
-    expect(
-      await authorizeCredentials("nobody@example.test", PASSWORD, null),
-    ).toBeNull();
-    expect(await authorizeCredentials(passwordless, PASSWORD, null)).toBeNull();
+    expect(await signIn("nobody@example.test", PASSWORD, null)).toBeNull();
+    expect(await signIn(passwordless, PASSWORD, null)).toBeNull();
 
     expect(verify).toHaveBeenCalledTimes(2);
     for (const [, stored] of verify.mock.calls) {
@@ -105,9 +105,7 @@ describe("credentials sign-in", () => {
     );
     captureLog("error");
 
-    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
-      "cred_hash_fail",
-    );
+    expect((await signIn(email, PASSWORD, null))?.id).toBe("cred_hash_fail");
     expect(await storedPassword("cred_hash_fail")).toBe(legacy);
   });
 
@@ -121,13 +119,59 @@ describe("credentials sign-in", () => {
     );
     const logged = captureLog("error");
 
-    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
-      "cred_db_fail",
-    );
+    expect((await signIn(email, PASSWORD, null))?.id).toBe("cred_db_fail");
     expect(await storedPassword("cred_db_fail")).toBe(legacy);
     expect(logged()).toContain("cred_db_fail");
     expect(logged()).not.toContain(legacy);
     expect(logged()).not.toContain("scrypt$");
+  });
+});
+
+describe("credentials input", () => {
+  test("an email signs in whatever its case or spacing, including an address stored mixed-case", async () => {
+    const hash = await password.hashPassword(PASSWORD);
+    const lower = await seedUser("cred_case_lower", hash);
+    await seedUser("cred_case_mixed", hash, "Cred.Case.Mixed@Example.TEST");
+
+    expect(
+      (await signIn(`  ${lower.toUpperCase()} `, PASSWORD, null))?.id,
+    ).toBe("cred_case_lower");
+    expect(
+      (await signIn(" cred.case.mixed@example.test", PASSWORD, null))?.id,
+    ).toBe("cred_case_mixed");
+  });
+
+  test("of two older accounts differing only in case, each signs in with its own spelling", async () => {
+    await seedUser(
+      "cred_twin_mixed",
+      await password.hashPassword(PASSWORD),
+      "Cred.Twin@example.test",
+    );
+    await seedUser(
+      "cred_twin_lower",
+      await password.hashPassword(`${PASSWORD}2`),
+      "cred.twin@example.test",
+    );
+
+    expect((await signIn(" Cred.Twin@example.test", PASSWORD, null))?.id).toBe(
+      "cred_twin_mixed",
+    );
+    expect(
+      (await signIn("cred.twin@example.test", `${PASSWORD}2`, null))?.id,
+    ).toBe("cred_twin_lower");
+  });
+
+  test("blank, malformed or missing credentials fail like a wrong password", async () => {
+    for (const credentials of [
+      {},
+      { email: "", password: "" },
+      { email: "", password: PASSWORD },
+      { email: "someone@example.test", password: "" },
+      { email: "not-an-email", password: PASSWORD },
+      { email: ["someone@example.test"], password: PASSWORD },
+    ]) {
+      expect(await authorizeCredentials(credentials, null)).toBeNull();
+    }
   });
 });
 
@@ -136,67 +180,110 @@ describe("credentials sign-in rate limit", () => {
     setSystemTime(Date.UTC(2029, 0, 1));
   });
 
-  test("past the per-email limit even the right password is refused before scrypt, logged by code only", async () => {
-    const email = await seedUser(
-      "cred_limit_email",
-      await password.hashPassword(PASSWORD),
-    );
-    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
+  async function seedSignedUp(id: string) {
+    return seedUser(id, await password.hashPassword(PASSWORD));
+  }
+
+  test("10 failures from one client refuse that client before scrypt, while the right password from another client signs in", async () => {
+    const email = await seedSignedUp("cred_lockout");
     const logged = captureLog("warn");
+    const stranger = "198.51.100.66";
     const spellings = [email, email.toUpperCase(), `  ${email} `];
 
-    for (let i = 0; i < SIGN_IN_LIMITS.email.max; i++) {
+    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
+    for (let i = 0; i < 10; i++) {
       const spelling = spellings[i % spellings.length] as string;
-      await authorizeCredentials(spelling, `${PASSWORD}x`, `198.51.100.${i}`);
+      expect(await signIn(spelling, `${PASSWORD}x`, stranger)).toBeNull();
     }
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max);
+    expect(verify).toHaveBeenCalledTimes(10);
     verify.mockRestore();
     const verifyAfter = spyOn(password, "verifyPassword");
 
-    expect(
-      await authorizeCredentials(email, PASSWORD, "198.51.100.250"),
-    ).toBeNull();
+    expect(await signIn(email, PASSWORD, stranger)).toBeNull();
     expect(verifyAfter).not.toHaveBeenCalled();
     expect(logged()).toContain("RATE_LIMITED");
-    expect(logged()).not.toContain("cred_limit_email");
+    expect(logged()).not.toContain("cred_lockout");
     expect(logged()).not.toContain("198.51.100");
+
+    expect((await signIn(email, PASSWORD, "198.51.100.67"))?.id).toBe(
+      "cred_lockout",
+    );
   });
 
-  test("a limiter that cannot count lets the sign-in through, logged by code only", async () => {
-    const email = await seedUser(
-      "cred_limit_down",
-      await password.hashPassword(PASSWORD),
-    );
-    spyOn(rateLimit, "takeSignInAttempt").mockRejectedValue(
-      new Error(`no such table: SignInAttempts (${email})`),
-    );
-    const logged = captureLog("error");
+  test("100 failures for one email across clients refuse it from every client before scrypt", async () => {
+    const email = await seedSignedUp("cred_backstop");
+    captureLog("warn");
+    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
 
-    const user = await authorizeCredentials(email, PASSWORD, "192.0.2.1");
+    for (let i = 0; i < 100; i++) {
+      await signIn(email, `${PASSWORD}x`, `192.0.2.${i}`);
+    }
+    expect(verify).toHaveBeenCalledTimes(100);
+    verify.mockRestore();
+    const verifyAfter = spyOn(password, "verifyPassword");
 
-    expect(user?.id).toBe("cred_limit_down");
-    expect(logged()).not.toContain(email);
-    expect(logged()).not.toContain("192.0.2.1");
+    expect(await signIn(email, PASSWORD, "192.0.2.250")).toBeNull();
+    expect(verifyAfter).not.toHaveBeenCalled();
   });
 
-  test("past the per-IP limit every email from that IP is refused before scrypt, other IPs are not", async () => {
+  test("successful sign-ins count toward no email limit and clear that client's failures", async () => {
+    const email = await seedSignedUp("cred_success");
+    const ip = "198.51.100.200";
+    const verify = spyOn(password, "verifyPassword");
+
+    verify.mockResolvedValue(true);
+    for (let i = 0; i < 11; i++) {
+      expect((await signIn(email, PASSWORD, `198.51.100.${i}`))?.id).toBe(
+        "cred_success",
+      );
+    }
+    for (let round = 0; round < 2; round++) {
+      verify.mockResolvedValue(false);
+      for (let i = 0; i < 9; i++) await signIn(email, `${PASSWORD}x`, ip);
+      verify.mockResolvedValue(true);
+      expect((await signIn(email, PASSWORD, ip))?.id).toBe("cred_success");
+    }
+  });
+
+  test("30 attempts from one client refuse every email from it before scrypt, other clients are not", async () => {
     const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
     const logged = captureLog("warn");
     const ip = "203.0.113.7";
 
-    for (let i = 0; i < SIGN_IN_LIMITS.ip.max; i++) {
-      await authorizeCredentials(`limit_ip_${i}@example.test`, PASSWORD, ip);
+    for (let i = 0; i < 30; i++) {
+      await signIn(`limit_ip_${i}@example.test`, PASSWORD, ip);
     }
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max);
+    expect(verify).toHaveBeenCalledTimes(30);
 
     const fresh = "limit_ip_fresh@example.test";
-    expect(await authorizeCredentials(fresh, PASSWORD, ip)).toBeNull();
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max);
+    expect(await signIn(fresh, PASSWORD, ip)).toBeNull();
+    expect(verify).toHaveBeenCalledTimes(30);
     expect(logged()).toContain("RATE_LIMITED");
     expect(logged()).not.toContain(ip);
 
-    await authorizeCredentials(fresh, PASSWORD, "203.0.113.8");
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max + 1);
+    await signIn(fresh, PASSWORD, "203.0.113.8");
+    expect(verify).toHaveBeenCalledTimes(31);
+  });
+
+  test("a limiter whose store fails lets sign-in through, logged by code only", async () => {
+    const email = await seedSignedUp("cred_limit_down");
+    const logged = captureLog("error");
+    await db.run(
+      sql.raw(`ALTER TABLE "SignInAttempts" RENAME TO "SignInAttemptsAway"`),
+    );
+    try {
+      expect(await signIn(email, `${PASSWORD}x`, "192.0.2.1")).toBeNull();
+      expect((await signIn(email, PASSWORD, "192.0.2.1"))?.id).toBe(
+        "cred_limit_down",
+      );
+    } finally {
+      await db.run(
+        sql.raw(`ALTER TABLE "SignInAttemptsAway" RENAME TO "SignInAttempts"`),
+      );
+    }
+    expect(logged()).toContain("[Auth]");
+    expect(logged()).not.toContain("cred_limit_down");
+    expect(logged()).not.toContain("192.0.2.1");
   });
 
   test("the next window lets attempts through again", async () => {
@@ -206,13 +293,13 @@ describe("credentials sign-in rate limit", () => {
     const start = Date.UTC(2030, 0, 1);
 
     setSystemTime(start);
-    for (let i = 0; i <= SIGN_IN_LIMITS.email.max; i++) {
-      await authorizeCredentials(email, PASSWORD, null);
+    for (let i = 0; i <= 10; i++) {
+      await signIn(email, PASSWORD, null);
     }
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max);
+    expect(verify).toHaveBeenCalledTimes(10);
 
     setSystemTime(start + SIGN_IN_LIMITS.windowMs);
-    await authorizeCredentials(email, PASSWORD, null);
-    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max + 1);
+    await signIn(email, PASSWORD, null);
+    expect(verify).toHaveBeenCalledTimes(11);
   });
 });

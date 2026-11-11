@@ -120,19 +120,23 @@ describe("a document written without a browser stores its pictures' sizes", () =
 
     await agent.save({ id: "esave_doc", elements: withPicture });
     await caller.create({
-      id: "esave_created",
+      id: "2e4f6a8b-0c1d-4e3f-a5b6-c7d8e9f0a101",
       title: "Created",
       elements: withPicture,
       entityType: "document",
       parentId: null,
     });
     await documents.create({
-      id: "esave_imported",
+      id: "2e4f6a8b-0c1d-4e3f-a5b6-c7d8e9f0a102",
       title: "Imported",
       elements: withPicture,
     });
 
-    for (const id of ["esave_doc", "esave_created", "esave_imported"])
+    for (const id of [
+      "esave_doc",
+      "2e4f6a8b-0c1d-4e3f-a5b6-c7d8e9f0a101",
+      "2e4f6a8b-0c1d-4e3f-a5b6-c7d8e9f0a102",
+    ])
       expect([id, await storedSize(id)]).toEqual([
         id,
         { width: 1080, height: 1350 },

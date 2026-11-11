@@ -17,3 +17,16 @@ export const getSignInSchema = () =>
   });
 
 export type SignInSchema = z.infer<ReturnType<typeof getSignInSchema>>;
+
+/**
+ * What the server takes as credentials: the form's rules with both fields
+ * required and the email normalized the way sign-up stores it.
+ */
+export const signInInput = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.string().email({ message: "Enter your email address." })),
+  password: z.string().min(1, { message: "Enter your password." }),
+});

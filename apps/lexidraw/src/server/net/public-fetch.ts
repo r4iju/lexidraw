@@ -1,3 +1,4 @@
+import { Resolver } from "node:dns/promises";
 import * as http from "node:http";
 import * as https from "node:https";
 import { pipeline, type Readable } from "node:stream";
@@ -7,7 +8,6 @@ import {
   publicAddress,
   type Resolve,
   reachable,
-  systemResolve,
 } from "@packages/lib/public-address";
 import {
   type Dispatcher,
@@ -32,12 +32,88 @@ export type Hop = (
   init: HopInit,
 ) => Promise<Response>;
 
-/** Refused because it leads somewhere a server may not reach. */
-export class NotPublic extends Error {
-  constructor(src: string) {
-    super(`Only public http(s) addresses may be fetched, not ${src}`);
-    this.name = "NotPublic";
+/**
+ * A URL the server will not fetch on a user's behalf: the user's mistake,
+ * with a message fit to show them, rather than a failure to reach it.
+ */
+export class Refused extends Error {
+  override name = "Refused";
+}
+
+/** `src` as a URL the server may fetch for a user, or Refused. */
+export function fetchableUrl(src: string): URL {
+  const url = reachable(src);
+  if (!url)
+    throw new Refused(
+      "Only http and https URLs without credentials can be fetched",
+    );
+  // URL leaves `port` empty for the scheme's own, however it was written.
+  if (url.port)
+    throw new Refused("Only port 80 for http and 443 for https can be fetched");
+  return url;
+}
+
+/** DNS answering that a name has no address of a family, rather than failing. */
+const NO_ADDRESS = new Set(["ENOTFOUND", "ENODATA"]);
+
+/**
+ * The addresses an A and an AAAA lookup found. When neither found one and
+ * either failed for another reason than the name having none, this throws, so
+ * a DNS outage is a failure to reach the site rather than a refusal of it.
+ */
+export function foundAddresses(
+  hostname: string,
+  [v4, v6]: [PromiseSettledResult<string[]>, PromiseSettledResult<string[]>],
+): Address[] {
+  const found = [
+    ...(v4.status === "fulfilled" ? v4.value : []).map((address) => ({
+      address,
+      family: 4,
+    })),
+    ...(v6.status === "fulfilled" ? v6.value : []).map((address) => ({
+      address,
+      family: 6,
+    })),
+  ];
+  if (found.length) return found;
+  for (const lookup of [v4, v6])
+    if (
+      lookup.status === "rejected" &&
+      !NO_ADDRESS.has((lookup.reason as { code?: string })?.code ?? "")
+    )
+      throw new Error(`Could not look up ${hostname}`, {
+        cause: lookup.reason,
+      });
+  return [];
+}
+
+/** Asks DNS directly, like `systemResolve`, with failures kept apart. */
+export const resolveHost: Resolve = async (hostname, signal) => {
+  const resolver = new Resolver({ tries: 1 });
+  const cancel = () => resolver.cancel();
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    return foundAddresses(
+      hostname,
+      await Promise.allSettled([
+        resolver.resolve4(hostname),
+        resolver.resolve6(hostname),
+      ]),
+    );
+  } finally {
+    signal.removeEventListener("abort", cancel);
   }
+};
+
+/** Where to connect for `url`, or Refused unless its host is public. */
+export async function publicTarget(
+  url: URL,
+  resolve: Resolve = resolveHost,
+  signal?: AbortSignal,
+): Promise<Address> {
+  const address = await publicAddress(url, resolve, signal);
+  if (!address) throw new Refused(`Not a public address: ${url.hostname}`);
+  return address;
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -45,34 +121,33 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const SITE_BOUND = ["cookie", "authorization"];
 
 /**
- * A GET of `src` on a user's behalf, refused with NotPublic unless it and
- * every redirect after it lead to a public http(s) address.
+ * A GET of `src` on a user's behalf, Refused unless it and every redirect
+ * after it are fetchable URLs leading to a public address.
  */
 export async function fetchPublic(
   src: string,
   init: { method?: string; headers?: HeadersInit; signal?: AbortSignal } = {},
   {
-    resolve = systemResolve,
+    resolve = resolveHost,
     hop = directHop,
     maxRedirects = 5,
   }: { resolve?: Resolve; hop?: Hop; maxRedirects?: number } = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
-  let url = reachable(src);
+  let href = src;
   for (let hops = 0; hops <= maxRedirects; hops++) {
-    if (!url) throw new NotPublic(src);
-    const address = await publicAddress(url, resolve, init.signal);
-    if (!address) throw new NotPublic(url.href);
+    const url = fetchableUrl(href);
+    const address = await publicTarget(url, resolve, init.signal);
     const response = await hop(url, address, { ...init, headers });
     const location = REDIRECTS.has(response.status)
       ? response.headers.get("location")
       : null;
     if (!location) return response;
     await response.body?.cancel();
-    const next = reachable(new URL(location, url).href);
-    if (next?.origin !== url.origin)
+    const next = new URL(location, url);
+    if (next.origin !== url.origin)
       for (const name of SITE_BOUND) headers.delete(name);
-    url = next;
+    href = next.href;
   }
   throw new Error(`Too many redirects from ${src}`);
 }

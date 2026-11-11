@@ -1,7 +1,8 @@
-import { and, drizzle, eq, schema } from "@packages/drizzle";
+import { and, drizzle, eq, schema, sql } from "@packages/drizzle";
+import { signInInput } from "~/app/signin/schema";
 import { errorCode } from "./error-code";
 import { hashPassword, needsRehash, verifyPassword } from "./password";
-import { takeSignInAttempt } from "./sign-in-rate-limit";
+import { withSignInLimit } from "./sign-in-rate-limit";
 
 /**
  * Checked when there is no account or no password, so that a missing account
@@ -12,37 +13,39 @@ const NO_ACCOUNT_HASH =
   "scrypt$131072$8$1$6YuRwPdgXDEoRH-elkgI1g$Z0HdpDQDLct55lwbQtkeTGeABVH_qkwrmq-v5tXMZFM";
 
 /**
- * The user an email and password sign in as, without the stored hash, or null
- * when they do not match.
+ * The user Auth.js credentials sign in as, without the stored hash, or null
+ * when they do not match. Blank or malformed credentials are a failed sign-in
+ * too, never an error, which Auth.js would report as a configuration fault.
+ *
+ * The email is matched whatever its case, so accounts stored before emails
+ * were normalized still sign in. The spelling typed wins over a case variant,
+ * so of two older accounts differing only in case, each signs in as typed.
  *
  * A hash in an outdated format (legacy SHA-256, or scrypt below today's cost)
  * is rewritten while the plaintext is at hand, so accounts move to the current
  * format without a reset. The rewrite only replaces the hash just verified, so
  * a concurrent change wins, and its failure never fails a correct sign-in.
- *
- * An attempt past the email or IP limit is refused like a wrong password
- * before any scrypt runs, so a burst of attempts costs one write each. When
- * the count cannot be taken the attempt goes ahead: the limit guards against
- * abuse, and must not turn a counter outage into a sign-in outage.
  */
 export async function authorizeCredentials(
-  email: string,
-  password: string,
+  credentials: unknown,
   clientIp: string | null,
 ) {
-  const limit = await takeSignInAttempt(email, clientIp).catch((error) => {
-    console.error("[Auth] sign-in attempt not counted", {
-      error: errorCode(error),
-    });
-    return null;
-  });
-  if (limit) {
-    console.warn("[Auth] sign-in refused", { error: "RATE_LIMITED", limit });
-    return null;
-  }
+  const parsed = signInInput.safeParse(credentials);
+  if (!parsed.success) return null;
+  const { email, password } = parsed.data;
+  const typed = String((credentials as { email: string }).email).trim();
+  return withSignInLimit(email, clientIp, () =>
+    userForPassword(email, typed, password),
+  );
+}
 
+async function userForPassword(email: string, typed: string, password: string) {
   const dbUser = await drizzle.query.users.findFirst({
-    where: (users, { eq }) => eq(users.email, email),
+    where: (users) => sql`lower(${users.email}) = ${email}`,
+    orderBy: (users) => [
+      sql`${users.email} = ${typed} desc`,
+      sql`${users.email} = ${email} desc`,
+    ],
   });
 
   if (!dbUser?.password) {

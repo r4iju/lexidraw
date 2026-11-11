@@ -41,16 +41,20 @@ mock.module("@vercel/blob/client", () => ({
 /** The picture the page being read names as its own. */
 let pagePicture: string | undefined;
 const realExtractor = await import("~/server/extractors/article");
+const { extractAndSanitizeArticle: realExtract } = realExtractor;
 mock.module("~/server/extractors/article", () => ({
   ...realExtractor,
-  extractAndSanitizeArticle: async ({ url }: { url: string }) => ({
-    bestImageUrl: pagePicture,
-    status: "ready",
-    title: `Read from ${url}`,
-    contentHtml: `<p>${"A sentence long enough to count as an article. ".repeat(20)}</p>`,
-    wordCount: 180,
-    updatedAt: "2026-09-26T00:00:00.000Z",
-  }),
+  extractAndSanitizeArticle: async ({ url }: { url: string }) =>
+    url.startsWith("https://example.com/")
+      ? {
+          bestImageUrl: pagePicture,
+          status: "ready",
+          title: `Read from ${url}`,
+          contentHtml: `<p>${"A sentence long enough to count as an article. ".repeat(20)}</p>`,
+          wordCount: 180,
+          updatedAt: "2026-09-26T00:00:00.000Z",
+        }
+      : realExtract({ url }),
 }));
 const { entityRouter } = await import("~/server/api/routers/entities");
 
@@ -58,6 +62,7 @@ const OWNER = "eimp_owner";
 const READER = "eimp_reader";
 const DOC = "eimp_doc";
 const LINK = "eimp_link";
+const INSIDE_LINK = "eimp_link_inside";
 const callerOf = (userId: string) =>
   entityRouter.createCaller({
     drizzle: db,
@@ -97,6 +102,12 @@ beforeAll(async () => {
         "url",
         "New link",
         JSON.stringify({ url: "https://example.com/post" }),
+      ),
+      row(
+        INSIDE_LINK,
+        "url",
+        "New link",
+        JSON.stringify({ url: "http://169.254.169.254/latest/meta-data/" }),
       ),
     ]);
   await db.insert(schema.sharedEntities).values({
@@ -210,7 +221,7 @@ describe("a picture the app sends", () => {
 describe("a document the app makes", () => {
   test("is made with its markdown in one request", async () => {
     await callerOf(OWNER).create({
-      id: "eimp_notes",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c01",
       entityType: "document",
       title: "Groceries",
       markdown: "Milk\n\n- eggs",
@@ -219,7 +230,7 @@ describe("a document the app makes", () => {
     const [notes] = await db
       .select()
       .from(schema.entities)
-      .where(eq(schema.entities.id, "eimp_notes"));
+      .where(eq(schema.entities.id, "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c01"));
     expect(notes?.title).toBe("Groceries");
     const blocks = JSON.parse(notes?.elements ?? "{}").root.children;
     expect(blocks.map((block: { type: string }) => block.type)).toEqual([
@@ -232,13 +243,15 @@ describe("a document the app makes", () => {
     const url = await sentPicture(PNG);
 
     await callerOf(OWNER).create({
-      id: "eimp_photo",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c02",
       entityType: "document",
       title: "Whiteboard",
       markdown: `From the meeting\n\n![](${url})`,
     });
 
-    expect(await recordedUploads("eimp_photo")).toMatchObject([
+    expect(
+      await recordedUploads("5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c02"),
+    ).toMatchObject([
       {
         userId: OWNER,
         fileName: decodeURIComponent(new URL(url).pathname.slice(1)),
@@ -252,7 +265,7 @@ describe("a document the app makes", () => {
 
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_script",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c03",
         entityType: "document",
         markdown: `![](${url})`,
       }),
@@ -262,7 +275,7 @@ describe("a document the app makes", () => {
     const made = await db
       .select()
       .from(schema.entities)
-      .where(eq(schema.entities.id, "eimp_script"));
+      .where(eq(schema.entities.id, "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c03"));
     expect(made).toEqual([]);
   });
 
@@ -274,7 +287,7 @@ describe("a document the app makes", () => {
 
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_unsent",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c04",
         entityType: "document",
         markdown: `![](${url})`,
       }),
@@ -285,25 +298,27 @@ describe("a document the app makes", () => {
     const theirs = await sentPicture(PNG, READER);
 
     await callerOf(OWNER).create({
-      id: "eimp_borrowed",
+      id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c05",
       entityType: "document",
       markdown: `![](${theirs})`,
     });
 
-    expect(await recordedUploads("eimp_borrowed")).toEqual([]);
+    expect(
+      await recordedUploads("5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c05"),
+    ).toEqual([]);
   });
 
   test("takes markdown only for a document, and not beside its content", async () => {
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_md_drawing",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c06",
         entityType: "drawing",
         markdown: "Hi",
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(
       callerOf(OWNER).create({
-        id: "eimp_md_both",
+        id: "5b7c9d1e-4f2a-4a6b-8c3d-7e8f9a0b1c07",
         entityType: "document",
         elements: "{}",
         markdown: "Hi",
@@ -321,6 +336,15 @@ describe("reading a saved link's page", () => {
       title: "Read from https://example.com/post",
       entityType: "url",
       parentId: null,
+    });
+  });
+
+  test("is the caller's mistake when the link leads to a private address", async () => {
+    await expect(
+      callerOf(OWNER).distillUrl({ id: INSIDE_LINK }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Not a public address: 169.254.169.254",
     });
   });
 

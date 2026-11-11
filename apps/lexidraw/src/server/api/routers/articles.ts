@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  articleUrl,
+  refusedAsBadRequest,
+} from "~/server/api/article-extraction";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import { eq, schema } from "@packages/drizzle";
@@ -16,7 +20,7 @@ export const articlesRouter = createTRPCRouter({
     })
     .input(
       z.object({
-        url: z.url(),
+        url: articleUrl,
         // optional client overrides; currently not used to change HTML
         maxChars: z.number().int().min(200).max(200000).optional(),
         keepQuotes: z.boolean().optional(),
@@ -49,7 +53,9 @@ export const articlesRouter = createTRPCRouter({
       const _maxChars = input.maxChars ?? articleCfg.maxChars;
       const _keepQuotes = input.keepQuotes ?? articleCfg.keepQuotes;
 
-      const distilled = await extractAndSanitizeArticle({ url: input.url });
+      const distilled = await extractAndSanitizeArticle({
+        url: input.url,
+      }).catch(refusedAsBadRequest);
 
       return {
         title: distilled.title,
