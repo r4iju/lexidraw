@@ -76,12 +76,11 @@ type CounterKeys = ReturnType<typeof counterKeys>;
 
 const { signInAttempts: table } = schema;
 
-function increment(keys: string[]) {
+/** Adds one to each key in the window, returning the counts that makes. */
+function increment(keys: string[], windowStart: Date) {
   return drizzle
     .insert(table)
-    .values(
-      keys.map((key) => ({ key, windowStart: currentWindowStart(), count: 1 })),
-    )
+    .values(keys.map((key) => ({ key, windowStart, count: 1 })))
     .onConflictDoUpdate({
       target: table.key,
       set: {
@@ -92,31 +91,41 @@ function increment(keys: string[]) {
     .returning({ key: table.key, count: table.count });
 }
 
-/**
- * Counts the attempt against its client, and returns the limit that refuses
- * it, or null. Refused attempts count against the client too, so hammering
- * past its limit keeps it shut until the window ends.
- */
-async function refusal(keys: CounterKeys): Promise<SignInLimit | null> {
-  const failures = await drizzle
-    .select({ key: table.key, count: table.count })
-    .from(table)
-    .where(
-      and(
-        inArray(table.key, [keys.emailAndClient, keys.email]),
-        eq(table.windowStart, currentWindowStart()),
-      ),
-    );
-  const failed = (key: string) =>
-    failures.find((row) => row.key === key)?.count ?? 0;
-  const [client] = keys.client ? await increment([keys.client]) : [];
+/** Takes back one from each key, unless its window has ended since. */
+function decrement(keys: string[], windowStart: Date) {
+  return drizzle
+    .update(table)
+    .set({ count: sql`max(${table.count} - 1, 0)` })
+    .where(and(inArray(table.key, keys), eq(table.windowStart, windowStart)));
+}
 
-  if (failed(keys.email) >= SIGN_IN_LIMITS.email.maxFailures) return "email";
-  if (failed(keys.emailAndClient) >= SIGN_IN_LIMITS.emailAndClient.maxFailures)
-    return "emailAndClient";
-  if (client && client.count > SIGN_IN_LIMITS.client.maxAttempts)
-    return "client";
-  return null;
+/**
+ * Counts the attempt as a failure for its email, and against its client,
+ * before the check runs, then names the limit that refuses it, or null.
+ * Counting first means attempts sent at once each see the others, so racing
+ * them cannot overrun a limit. A refused attempt's email counts are taken
+ * back, so a client shut out cannot use up the email backstop; its client
+ * count stays, so hammering keeps that client shut until the window ends.
+ */
+async function admit(keys: CounterKeys, windowStart: Date) {
+  const emailKeys = [keys.emailAndClient, keys.email];
+  const counts = await increment(
+    keys.client ? [...emailKeys, keys.client] : emailKeys,
+    windowStart,
+  );
+  const count = (key: string | null) =>
+    counts.find((row) => row.key === key)?.count ?? 0;
+
+  const limit: SignInLimit | null =
+    count(keys.email) > SIGN_IN_LIMITS.email.maxFailures
+      ? "email"
+      : count(keys.emailAndClient) > SIGN_IN_LIMITS.emailAndClient.maxFailures
+        ? "emailAndClient"
+        : count(keys.client) > SIGN_IN_LIMITS.client.maxAttempts
+          ? "client"
+          : null;
+  if (limit) await decrement(emailKeys, windowStart);
+  return limit;
 }
 
 /**
@@ -124,7 +133,8 @@ async function refusal(keys: CounterKeys): Promise<SignInLimit | null> {
  * normalized. An attempt past a limit is refused like a wrong password before
  * the check runs, so a refused attempt costs no scrypt. A failed check counts
  * against the email from this client and against the email overall; a
- * successful one clears this client's failures for the email.
+ * successful one counts against neither, and clears this client's failures
+ * for the email.
  *
  * When the store cannot count, the attempt goes ahead: the limit guards
  * against abuse, and must not turn a counter outage into a sign-in outage.
@@ -135,7 +145,10 @@ export async function withSignInLimit<T>(
   check: () => Promise<T | null>,
 ): Promise<T | null> {
   const keys = counterKeys(email, ip);
-  const limit = await refusal(keys).catch((error) => {
+  const windowStart = currentWindowStart();
+  let counted = true;
+  const limit = await admit(keys, windowStart).catch((error) => {
+    counted = false;
     console.error("[Auth] sign-in attempt not counted", {
       error: errorCode(error),
     });
@@ -147,14 +160,15 @@ export async function withSignInLimit<T>(
   }
 
   const user = await check();
-  try {
-    if (user)
+  if (user && counted) {
+    try {
       await drizzle.delete(table).where(eq(table.key, keys.emailAndClient));
-    else await increment([keys.emailAndClient, keys.email]);
-  } catch (error) {
-    console.error("[Auth] sign-in outcome not counted", {
-      error: errorCode(error),
-    });
+      await decrement([keys.email], windowStart);
+    } catch (error) {
+      console.error("[Auth] sign-in outcome not counted", {
+        error: errorCode(error),
+      });
+    }
   }
   return user;
 }

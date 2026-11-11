@@ -61,6 +61,28 @@ describe("sign-in rate limit", () => {
     expect(await checked(next, "2001:db8:1:3::1")).toBe(true);
   });
 
+  test("attempts sent at once cannot check more passwords than the limit allows", async () => {
+    setSystemTime(Date.UTC(2033, 0, 1));
+    const email = "race@example.test";
+    const ip = "198.51.100.7";
+    const { maxFailures } = SIGN_IN_LIMITS.emailAndClient;
+    for (let i = 0; i < maxFailures - 1; i++)
+      expect(await checked(email, ip)).toBe(true);
+
+    let checks = 0;
+    const slowWrongPassword = async () => {
+      checks++;
+      await Bun.sleep(20);
+      return null;
+    };
+    await Promise.all(
+      Array.from({ length: 15 }, () =>
+        withSignInLimit(email, ip, slowWrongPassword),
+      ),
+    );
+    expect(checks).toBe(1);
+  });
+
   test("the purge drops finished windows and keeps the current one counting", async () => {
     const start = Date.UTC(2031, 0, 1);
     setSystemTime(start);

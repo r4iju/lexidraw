@@ -3,7 +3,13 @@ import { describe, expect, test } from "bun:test";
 import { createServer } from "node:http";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 import type { Resolve } from "@packages/lib/public-address";
-import { directHop, fetchPublic, type Hop, Refused } from "./public-fetch";
+import {
+  directHop,
+  fetchPublic,
+  foundAddresses,
+  type Hop,
+  Refused,
+} from "./public-fetch";
 
 const resolve: Resolve = async (host) => [
   {
@@ -31,6 +37,42 @@ const moved = (location: string) => () =>
   new Response(null, { status: 302, headers: { location } });
 
 describe("fetching for a user", () => {
+  test("a name DNS has no address for is refused, a lookup that failed is not", () => {
+    const dnsError = (code: string) =>
+      ({
+        status: "rejected",
+        reason: Object.assign(new Error(code), { code }),
+      }) as const;
+    const none = dnsError("ENODATA");
+
+    expect(
+      foundAddresses("news.example", [
+        { status: "fulfilled", value: ["93.184.215.14"] },
+        dnsError("ETIMEOUT"),
+      ]),
+    ).toEqual([{ address: "93.184.215.14", family: 4 }]);
+    expect(
+      foundAddresses("gone.example", [dnsError("ENOTFOUND"), none]),
+    ).toEqual([]);
+    for (const code of ["ETIMEOUT", "ESERVFAIL", "ECONNREFUSED"])
+      expect(() =>
+        foundAddresses("news.example", [none, dnsError(code)]),
+      ).toThrow("Could not look up news.example");
+  });
+
+  test("a DNS outage fails the fetch without calling the URL refused", async () => {
+    const outage: Resolve = async () => {
+      throw new Error("Could not look up news.example");
+    };
+    const failure = await fetchPublic(
+      "https://news.example/post",
+      {},
+      { resolve: outage, hop: network({}) },
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(Refused);
+  });
+
   test("reads a public page from the address it checked", async () => {
     const asked: { at: string }[] = [];
     const response = await fetchPublic(

@@ -1,3 +1,4 @@
+import { Resolver } from "node:dns/promises";
 import * as http from "node:http";
 import * as https from "node:https";
 import { pipeline, type Readable } from "node:stream";
@@ -7,7 +8,6 @@ import {
   publicAddress,
   type Resolve,
   reachable,
-  systemResolve,
 } from "@packages/lib/public-address";
 import {
   type Dispatcher,
@@ -53,10 +53,62 @@ export function fetchableUrl(src: string): URL {
   return url;
 }
 
+/** DNS answering that a name has no address of a family, rather than failing. */
+const NO_ADDRESS = new Set(["ENOTFOUND", "ENODATA"]);
+
+/**
+ * The addresses an A and an AAAA lookup found. When neither found one and
+ * either failed for another reason than the name having none, this throws, so
+ * a DNS outage is a failure to reach the site rather than a refusal of it.
+ */
+export function foundAddresses(
+  hostname: string,
+  [v4, v6]: [PromiseSettledResult<string[]>, PromiseSettledResult<string[]>],
+): Address[] {
+  const found = [
+    ...(v4.status === "fulfilled" ? v4.value : []).map((address) => ({
+      address,
+      family: 4,
+    })),
+    ...(v6.status === "fulfilled" ? v6.value : []).map((address) => ({
+      address,
+      family: 6,
+    })),
+  ];
+  if (found.length) return found;
+  for (const lookup of [v4, v6])
+    if (
+      lookup.status === "rejected" &&
+      !NO_ADDRESS.has((lookup.reason as { code?: string })?.code ?? "")
+    )
+      throw new Error(`Could not look up ${hostname}`, {
+        cause: lookup.reason,
+      });
+  return [];
+}
+
+/** Asks DNS directly, like `systemResolve`, with failures kept apart. */
+export const resolveHost: Resolve = async (hostname, signal) => {
+  const resolver = new Resolver({ tries: 1 });
+  const cancel = () => resolver.cancel();
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    return foundAddresses(
+      hostname,
+      await Promise.allSettled([
+        resolver.resolve4(hostname),
+        resolver.resolve6(hostname),
+      ]),
+    );
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+};
+
 /** Where to connect for `url`, or Refused unless its host is public. */
 export async function publicTarget(
   url: URL,
-  resolve: Resolve = systemResolve,
+  resolve: Resolve = resolveHost,
   signal?: AbortSignal,
 ): Promise<Address> {
   const address = await publicAddress(url, resolve, signal);
@@ -76,7 +128,7 @@ export async function fetchPublic(
   src: string,
   init: { method?: string; headers?: HeadersInit; signal?: AbortSignal } = {},
   {
-    resolve = systemResolve,
+    resolve = resolveHost,
     hop = directHop,
     maxRedirects = 5,
   }: { resolve?: Resolve; hop?: Hop; maxRedirects?: number } = {},

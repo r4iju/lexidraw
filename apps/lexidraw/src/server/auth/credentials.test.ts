@@ -141,6 +141,26 @@ describe("credentials input", () => {
     ).toBe("cred_case_mixed");
   });
 
+  test("of two older accounts differing only in case, each signs in with its own spelling", async () => {
+    await seedUser(
+      "cred_twin_mixed",
+      await password.hashPassword(PASSWORD),
+      "Cred.Twin@example.test",
+    );
+    await seedUser(
+      "cred_twin_lower",
+      await password.hashPassword(`${PASSWORD}2`),
+      "cred.twin@example.test",
+    );
+
+    expect((await signIn(" Cred.Twin@example.test", PASSWORD, null))?.id).toBe(
+      "cred_twin_mixed",
+    );
+    expect(
+      (await signIn("cred.twin@example.test", `${PASSWORD}2`, null))?.id,
+    ).toBe("cred_twin_lower");
+  });
+
   test("blank, malformed or missing credentials fail like a wrong password", async () => {
     for (const credentials of [
       {},

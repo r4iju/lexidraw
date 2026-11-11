@@ -227,13 +227,19 @@ describe("saving settings", () => {
       .where(eq(schema.users.id, SETTINGS_USER));
     const stale = authRouter.createCaller({
       drizzle: {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              limit: async () => [{ config: { aiPower: { mode: "local" } } }],
-            }),
-          }),
-        }),
+        // Only the config read is stale; other reads see the database.
+        select: (fields: Record<string, unknown>) =>
+          "config" in fields
+            ? {
+                from: () => ({
+                  where: () => ({
+                    limit: async () => [
+                      { config: { aiPower: { mode: "local" } } },
+                    ],
+                  }),
+                }),
+              }
+            : db.select(fields as never),
         update: db.update.bind(db),
       },
       session: { user: { id: SETTINGS_USER } },
@@ -269,5 +275,35 @@ describe("saving settings", () => {
 
     await settings.updateProfile({ ...account, email: "moved@example.test" });
     expect(await verifiedAt()).toBeNull();
+  });
+
+  test("a profile cannot take an email another account holds, in any case", async () => {
+    await db.insert(schema.users).values({
+      id: "settings_email_holder",
+      name: "Holder",
+      email: "Settings.Holder@example.test",
+    });
+
+    for (const email of [
+      "settings.holder@example.test",
+      "Settings.Holder@example.test",
+    ])
+      await expect(
+        settings.updateProfile({ ...account, email }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    const [row] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    expect(row?.email).not.toMatch(/holder/i);
+
+    await settings.updateProfile({
+      ...account,
+      email: "Settings.Own@example.test",
+    });
+    await settings.updateProfile({
+      ...account,
+      email: "settings.own@example.test",
+    });
   });
 });

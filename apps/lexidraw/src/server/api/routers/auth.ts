@@ -15,7 +15,7 @@ import {
   writerProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { type drizzle, eq, sql } from "@packages/drizzle";
+import { and, type drizzle, eq, ne, sql } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
 import { deleteAccount } from "~/server/account/delete-account";
@@ -52,7 +52,7 @@ const emailTaken = () =>
     message: "An account with this email already exists",
   });
 
-/** The unique email index refusing an insert that raced the existence check. */
+/** The unique email index refusing a write that raced the existence check. */
 function isTakenEmail(error: unknown) {
   const cause = error instanceof Error ? error.cause : undefined;
   return (
@@ -189,16 +189,36 @@ export const authRouter = createTRPCRouter({
       let config = sql`json_set(coalesce(${schema.users.config}, '{}'), '$.autocomplete', json(${JSON.stringify(nextConfig.autocomplete ?? {})}), '$.tts', json(${JSON.stringify(nextConfig.tts ?? {})}), '$.audio', json(${JSON.stringify(nextConfig.audio ?? {})}))`;
       if (typeof input.autoSave === "boolean")
         config = sql`json_set(${config}, '$.autoSave', json(${JSON.stringify(nextConfig.autoSave)}))`;
-      await ctx.drizzle
-        .update(schema.users)
-        .set({
-          name: input.name,
-          email: input.email,
-          // A proof covers the address it was made for, never a new one.
-          emailVerified: sql`case when ${schema.users.email} = ${input.email} then ${schema.users.emailVerified} end`,
-          config,
-        })
-        .where(eq(schema.users.id, ctx.session.user.id));
+
+      // Credentials sign-in matches emails whatever their case, so an email
+      // another account holds in any case would take over its sign-in.
+      const [holder] = await ctx.drizzle
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            sql`lower(${schema.users.email}) = ${input.email.trim().toLowerCase()}`,
+            ne(schema.users.id, ctx.session.user.id),
+          ),
+        )
+        .limit(1);
+      if (holder) throw emailTaken();
+
+      try {
+        await ctx.drizzle
+          .update(schema.users)
+          .set({
+            name: input.name,
+            email: input.email,
+            // A proof covers the address it was made for, never a new one.
+            emailVerified: sql`case when ${schema.users.email} = ${input.email} then ${schema.users.emailVerified} end`,
+            config,
+          })
+          .where(eq(schema.users.id, ctx.session.user.id));
+      } catch (error) {
+        if (isTakenEmail(error)) throw emailTaken();
+        throw error;
+      }
       return;
     }),
   /**

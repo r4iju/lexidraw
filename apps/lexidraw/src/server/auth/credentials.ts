@@ -18,7 +18,8 @@ const NO_ACCOUNT_HASH =
  * too, never an error, which Auth.js would report as a configuration fault.
  *
  * The email is matched whatever its case, so accounts stored before emails
- * were normalized still sign in; an exact match wins over a case variant.
+ * were normalized still sign in. The spelling typed wins over a case variant,
+ * so of two older accounts differing only in case, each signs in as typed.
  *
  * A hash in an outdated format (legacy SHA-256, or scrypt below today's cost)
  * is rewritten while the plaintext is at hand, so accounts move to the current
@@ -32,15 +33,19 @@ export async function authorizeCredentials(
   const parsed = signInInput.safeParse(credentials);
   if (!parsed.success) return null;
   const { email, password } = parsed.data;
+  const typed = String((credentials as { email: string }).email).trim();
   return withSignInLimit(email, clientIp, () =>
-    userForPassword(email, password),
+    userForPassword(email, typed, password),
   );
 }
 
-async function userForPassword(email: string, password: string) {
+async function userForPassword(email: string, typed: string, password: string) {
   const dbUser = await drizzle.query.users.findFirst({
     where: (users) => sql`lower(${users.email}) = ${email}`,
-    orderBy: (users) => sql`${users.email} = ${email} desc`,
+    orderBy: (users) => [
+      sql`${users.email} = ${typed} desc`,
+      sql`${users.email} = ${email} desc`,
+    ],
   });
 
   if (!dbUser?.password) {
