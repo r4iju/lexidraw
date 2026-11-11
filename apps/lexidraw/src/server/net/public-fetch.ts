@@ -32,12 +32,36 @@ export type Hop = (
   init: HopInit,
 ) => Promise<Response>;
 
-/** Refused because it leads somewhere a server may not reach. */
-export class NotPublic extends Error {
-  constructor(src: string) {
-    super(`Only public http(s) addresses may be fetched, not ${src}`);
-    this.name = "NotPublic";
-  }
+/**
+ * A URL the server will not fetch on a user's behalf: the user's mistake,
+ * with a message fit to show them, rather than a failure to reach it.
+ */
+export class Refused extends Error {
+  override name = "Refused";
+}
+
+/** `src` as a URL the server may fetch for a user, or Refused. */
+export function fetchableUrl(src: string): URL {
+  const url = reachable(src);
+  if (!url)
+    throw new Refused(
+      "Only http and https URLs without credentials can be fetched",
+    );
+  // URL leaves `port` empty for the scheme's own, however it was written.
+  if (url.port)
+    throw new Refused("Only port 80 for http and 443 for https can be fetched");
+  return url;
+}
+
+/** Where to connect for `url`, or Refused unless its host is public. */
+export async function publicTarget(
+  url: URL,
+  resolve: Resolve = systemResolve,
+  signal?: AbortSignal,
+): Promise<Address> {
+  const address = await publicAddress(url, resolve, signal);
+  if (!address) throw new Refused(`Not a public address: ${url.hostname}`);
+  return address;
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -45,8 +69,8 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const SITE_BOUND = ["cookie", "authorization"];
 
 /**
- * A GET of `src` on a user's behalf, refused with NotPublic unless it and
- * every redirect after it lead to a public http(s) address.
+ * A GET of `src` on a user's behalf, Refused unless it and every redirect
+ * after it are fetchable URLs leading to a public address.
  */
 export async function fetchPublic(
   src: string,
@@ -58,21 +82,20 @@ export async function fetchPublic(
   }: { resolve?: Resolve; hop?: Hop; maxRedirects?: number } = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
-  let url = reachable(src);
+  let href = src;
   for (let hops = 0; hops <= maxRedirects; hops++) {
-    if (!url) throw new NotPublic(src);
-    const address = await publicAddress(url, resolve, init.signal);
-    if (!address) throw new NotPublic(url.href);
+    const url = fetchableUrl(href);
+    const address = await publicTarget(url, resolve, init.signal);
     const response = await hop(url, address, { ...init, headers });
     const location = REDIRECTS.has(response.status)
       ? response.headers.get("location")
       : null;
     if (!location) return response;
     await response.body?.cancel();
-    const next = reachable(new URL(location, url).href);
-    if (next?.origin !== url.origin)
+    const next = new URL(location, url);
+    if (next.origin !== url.origin)
       for (const name of SITE_BOUND) headers.delete(name);
-    url = next;
+    href = next.href;
   }
   throw new Error(`Too many redirects from ${src}`);
 }

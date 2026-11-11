@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import {
+  articleUrl,
+  refusedAsBadRequest,
+} from "~/server/api/article-extraction";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 const GoogleSearchInput = z.object({
@@ -31,7 +35,7 @@ export const webRouter = createTRPCRouter({
   extractWebpageContent: protectedProcedure
     .input(
       z.object({
-        url: z.url(),
+        url: articleUrl,
         maxChars: z.number().int().min(200).max(20000).optional(),
       }),
     )
@@ -40,26 +44,21 @@ export const webRouter = createTRPCRouter({
       const { extractAndSanitizeArticle } = await import(
         "~/server/extractors/article"
       );
-      try {
-        const distilled = await extractAndSanitizeArticle({ url: input.url });
-        const text = stripHtmlToText(distilled.contentHtml);
-        const content =
-          typeof input.maxChars === "number"
-            ? text.slice(0, input.maxChars)
-            : text;
-        return {
-          url: input.url,
-          title: distilled.title,
-          content,
-          length: content.length,
-          excerpt: distilled.excerpt ?? undefined,
-        };
-      } catch (e) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: e instanceof Error ? e.message : "Failed to extract article",
-        });
-      }
+      const distilled = await extractAndSanitizeArticle({
+        url: input.url,
+      }).catch(refusedAsBadRequest);
+      const text = stripHtmlToText(distilled.contentHtml);
+      const content =
+        typeof input.maxChars === "number"
+          ? text.slice(0, input.maxChars)
+          : text;
+      return {
+        url: input.url,
+        title: distilled.title,
+        content,
+        length: content.length,
+        excerpt: distilled.excerpt ?? undefined,
+      };
     }),
 });
 

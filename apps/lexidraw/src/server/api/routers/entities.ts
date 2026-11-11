@@ -38,6 +38,7 @@ import {
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
+import { refusedAsBadRequest } from "~/server/api/article-extraction";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import { readPublicImage } from "~/server/net/public-image";
 import {
@@ -1883,7 +1884,7 @@ export const entityRouter = createTRPCRouter({
       let distilled = await extractAndSanitizeArticle({
         url,
         cookiesHeader,
-      });
+      }).catch(refusedAsBadRequest);
 
       // Headless fallback when content is too short
       const tooShort =

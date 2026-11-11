@@ -41,16 +41,20 @@ mock.module("@vercel/blob/client", () => ({
 /** The picture the page being read names as its own. */
 let pagePicture: string | undefined;
 const realExtractor = await import("~/server/extractors/article");
+const { extractAndSanitizeArticle: realExtract } = realExtractor;
 mock.module("~/server/extractors/article", () => ({
   ...realExtractor,
-  extractAndSanitizeArticle: async ({ url }: { url: string }) => ({
-    bestImageUrl: pagePicture,
-    status: "ready",
-    title: `Read from ${url}`,
-    contentHtml: `<p>${"A sentence long enough to count as an article. ".repeat(20)}</p>`,
-    wordCount: 180,
-    updatedAt: "2026-09-26T00:00:00.000Z",
-  }),
+  extractAndSanitizeArticle: async ({ url }: { url: string }) =>
+    url.startsWith("https://example.com/")
+      ? {
+          bestImageUrl: pagePicture,
+          status: "ready",
+          title: `Read from ${url}`,
+          contentHtml: `<p>${"A sentence long enough to count as an article. ".repeat(20)}</p>`,
+          wordCount: 180,
+          updatedAt: "2026-09-26T00:00:00.000Z",
+        }
+      : realExtract({ url }),
 }));
 const { entityRouter } = await import("~/server/api/routers/entities");
 
@@ -58,6 +62,7 @@ const OWNER = "eimp_owner";
 const READER = "eimp_reader";
 const DOC = "eimp_doc";
 const LINK = "eimp_link";
+const INSIDE_LINK = "eimp_link_inside";
 const callerOf = (userId: string) =>
   entityRouter.createCaller({
     drizzle: db,
@@ -97,6 +102,12 @@ beforeAll(async () => {
         "url",
         "New link",
         JSON.stringify({ url: "https://example.com/post" }),
+      ),
+      row(
+        INSIDE_LINK,
+        "url",
+        "New link",
+        JSON.stringify({ url: "http://169.254.169.254/latest/meta-data/" }),
       ),
     ]);
   await db.insert(schema.sharedEntities).values({
@@ -321,6 +332,15 @@ describe("reading a saved link's page", () => {
       title: "Read from https://example.com/post",
       entityType: "url",
       parentId: null,
+    });
+  });
+
+  test("is the caller's mistake when the link leads to a private address", async () => {
+    await expect(
+      callerOf(OWNER).distillUrl({ id: INSIDE_LINK }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Not a public address: 169.254.169.254",
     });
   });
 

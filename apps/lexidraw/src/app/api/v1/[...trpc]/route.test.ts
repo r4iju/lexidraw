@@ -208,6 +208,38 @@ describe("a body the endpoint cannot read", () => {
   });
 });
 
+describe("an article URL the server will not fetch", () => {
+  test("is 400 for a private address, saying it is not public", async () => {
+    for (const url of [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://127.0.0.1/",
+      "http://[::1]/",
+      "http://localhost/",
+    ]) {
+      const { response, body } = await api("POST", "/articles/extract", {
+        body: { url },
+      });
+      expect(response.status).toBe(400);
+      expect(body.code).toBe("BAD_REQUEST");
+      expect(body.message).toContain("Not a public address");
+    }
+  });
+
+  test("is 400 from validation for a scheme other than http or https", async () => {
+    for (const url of [
+      "file:///etc/passwd",
+      "ftp://example.com/post",
+      "javascript:alert(1)",
+    ]) {
+      const { response, body } = await api("POST", "/articles/extract", {
+        body: { url },
+      });
+      expect(response.status).toBe(400);
+      expect(body.issues).toBeArray();
+    }
+  });
+});
+
 describe("an entity that is not there", () => {
   test("is named an entity, whatever type the caller had in mind", async () => {
     const { response, body } = await api("GET", "/entities/missing");

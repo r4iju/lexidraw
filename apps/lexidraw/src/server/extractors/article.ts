@@ -6,17 +6,15 @@ import { Readability } from "@mozilla/readability";
 import { z } from "zod";
 import { ProxyAgent } from "undici";
 import { getBrightDataProxyUrls } from "@packages/lib";
+import type { Resolve } from "@packages/lib/public-address";
 import {
-  publicAddress,
-  type Resolve,
-  reachable,
-} from "@packages/lib/public-address";
-import {
+  fetchableUrl,
   fetchPublic,
   type Hop,
-  NotPublic,
   type ProxyDispatcher,
   proxyHop,
+  publicTarget,
+  Refused,
 } from "~/server/net/public-fetch";
 import env from "@packages/env";
 
@@ -301,12 +299,8 @@ export async function extractAndSanitizeArticle({
   /** How hosts are looked up and asked when not through a proxy. */
   network?: { resolve?: Resolve; hop?: Hop };
 }): Promise<DistilledArticle> {
-  if (!isHttpUrl(url)) {
-    throw new Error("Only http/https URLs are supported");
-  }
-  const target = reachable(url);
-  if (!html && !(target && (await publicAddress(target, network.resolve))))
-    throw new NotPublic(url);
+  const target = fetchableUrl(url);
+  if (!html) await publicTarget(target, network.resolve);
   // replace username and password with *
   const loggableUrl = url.replace(/https?:\/\/[^/]+@/, "https://***@");
 
@@ -347,6 +341,8 @@ export async function extractAndSanitizeArticle({
   };
   let best: AttemptResult | null = null;
   let lastError: unknown = null;
+  /** Outranks whatever other transports failed with: the URL itself is out. */
+  let refusal: Refused | null = null;
 
   const runAttempt = async (
     dispatcher: ProxyDispatcher | undefined,
@@ -1050,6 +1046,7 @@ export async function extractAndSanitizeArticle({
       }
     } catch (e) {
       lastError = e;
+      if (e instanceof Refused) refusal ??= e;
       devLog("attempt:error", {
         transport: loggableLabel,
         error: e instanceof Error ? e.message : String(e),
@@ -1079,6 +1076,7 @@ export async function extractAndSanitizeArticle({
     return b.distilled;
   }
   // All attempts failed
+  if (refusal) throw refusal;
   throw lastError instanceof Error
     ? lastError
     : new Error("Failed to distill article: all attempts failed");
