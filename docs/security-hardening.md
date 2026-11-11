@@ -241,8 +241,10 @@ Close each gap at its source, keeping every shipped client working:
   | Client | client IP bucket | all attempts | 30 |
 
 - The limit is checked before the password is verified, so a refused attempt
-  costs no scrypt. Only a failed verification increments the two email
-  counters; the client counter keeps counting every attempt.
+  costs no scrypt. The two email counters count an attempt as a failure
+  before its check, so attempts sent at once cannot overrun them, and take
+  the count back when the attempt is refused or signs in; the client counter
+  keeps counting every attempt.
 - A successful sign-in clears the email-and-client counter.
 - The per-email ceiling still allows a determined attacker with many IP
   addresses to lock an account for the rest of a window. That residual is
@@ -300,6 +302,8 @@ Close each gap at its source, keeping every shipped client working:
   web port (80 for `http`, 443 for `https`), and runs for the first request
   and every redirect hop, alongside the existing address checks and address
   pinning.
+- Only a DNS answer that the name has no address is a refusal; a lookup that
+  fails (timeout, server failure) is a failure to reach the site (S20).
 
 ### Delivery
 
@@ -367,6 +371,11 @@ Close each gap at its source, keeping every shipped client working:
   stored drawing and link ids that are not canonical lowercase UUIDs. If any
   exist besides the test rows, keep those pages permissive and record the
   count; links (S11) are fixed either way.
+- Credentials sign-in matches emails whatever their case, preferring the
+  spelling typed, and profile edits refuse an email another account holds in
+  any case. Check production for emails that collide once lowercased; each
+  such account still signs in with its exact spelling, but the owners should
+  be told before either changes address.
 - The HTML block runtime held up: scripts run in an interpreter with no
   `location`, `fetch` or cookies; markup with `src`, event handlers, frames or
   forms is refused. Markdown neutralizes `javascript:`, `data:` and
