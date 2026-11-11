@@ -42,7 +42,8 @@ export default function SignUpForm({
     try {
       await signUp(data);
     } catch {
-      // The server won't say why, so an existing account isn't revealed.
+      // A taken email is the refusal a valid form can meet, so it is the one
+      // named.
       setSubmitError(
         "We couldn’t create an account with that email. If you already have one, sign in instead.",
       );

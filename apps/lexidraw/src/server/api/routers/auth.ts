@@ -1,7 +1,7 @@
 import { PowerPreferenceSchema, powerPreference } from "~/lib/byok/preference";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getSignUpSchema } from "~/app/signup/schema";
+import { signUpInput } from "~/app/signup/schema";
 import {
   confirmsDeletion,
   deletionConfirmation,
@@ -46,6 +46,21 @@ async function identityOf(db: typeof drizzle, userId: string) {
   return user;
 }
 
+const emailTaken = () =>
+  new TRPCError({
+    code: "CONFLICT",
+    message: "An account with this email already exists",
+  });
+
+/** The unique email index refusing an insert that raced the existence check. */
+function isTakenEmail(error: unknown) {
+  const cause = error instanceof Error ? error.cause : undefined;
+  return (
+    cause instanceof Error &&
+    cause.message.includes("UNIQUE constraint failed: Users.email")
+  );
+}
+
 export const authRouter = createTRPCRouter({
   getPowerPreference: protectedProcedure.query(async ({ ctx }) => {
     const [user] = await ctx.drizzle
@@ -84,19 +99,25 @@ export const authRouter = createTRPCRouter({
         .where(eq(schema.users.id, ctx.session.user.id));
     }),
   signUp: publicProcedure
-    .input(getSignUpSchema())
+    .input(signUpInput)
     .mutation(async ({ ctx, input }) => {
+      const [registered] = await ctx.drizzle
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(sql`lower(${schema.users.email}) = ${input.email}`)
+        .limit(1);
+      if (registered) throw emailTaken();
+
       try {
         await ctx.drizzle.insert(schema.users).values({
           email: input.email,
           name: input.name,
           password: await hashPassword(input.password),
         });
-
         return true;
       } catch (error) {
+        if (isTakenEmail(error)) throw emailTaken();
         console.error("[Auth] sign-up failed", { error: errorCode(error) });
-        // don't tell why
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Something went wrong",

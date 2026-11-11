@@ -5,7 +5,6 @@ import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq, schema, type drizzle } from "@packages/drizzle";
-import { getSignInSchema } from "~/app/signin/schema";
 import { authorizeCredentials } from "~/server/auth/credentials";
 import { clientIp } from "~/server/auth/sign-in-rate-limit";
 import { sessionToken } from "~/server/auth/session-token";
@@ -176,15 +175,8 @@ export function createAuth({ db, github, apple }: AuthDeps) {
           },
           password: { label: "Password", type: "password" },
         },
-        authorize: async (credentials, request) => {
-          const SignInSchema = getSignInSchema();
-          const { email, password } = SignInSchema.parse(credentials);
-          return authorizeCredentials(
-            email,
-            password,
-            clientIp(request.headers),
-          );
-        },
+        authorize: (credentials, request) =>
+          authorizeCredentials(credentials, clientIp(request.headers)),
       }),
     ],
     session: {

@@ -255,8 +255,8 @@ export const nativeSignInCodes = sqliteTable(
   (table) => [index("NativeSignInCode_expiresAt_idx").on(table.expiresAt)],
 );
 
-// Credential sign-in attempts per fixed window. The key is the SHA-256 of
-// `email:<address>` or `ip:<address>`, so no email or IP is stored.
+// Credential sign-in counts per fixed window. The key is the SHA-256 of
+// `<counter>:<email, client or both>`, so no email or IP is stored.
 export const signInAttempts = sqliteTable(
   "SignInAttempts",
   {
@@ -705,9 +705,17 @@ export const legacyDocumentRetentionV1 = sqliteTable(
     derivedFields: blob("derivedFields", { mode: "buffer" }).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.sourceSetId, table.sourceTable, table.sourceId] }),
-    check("LegacyDocumentRetentionV1_contractVersion", sql`contractVersion = 1`),
-    check("LegacyDocumentRetentionV1_status", sql`status IN ('retained','converted')`),
+    primaryKey({
+      columns: [table.sourceSetId, table.sourceTable, table.sourceId],
+    }),
+    check(
+      "LegacyDocumentRetentionV1_contractVersion",
+      sql`contractVersion = 1`,
+    ),
+    check(
+      "LegacyDocumentRetentionV1_status",
+      sql`status IN ('retained','converted')`,
+    ),
   ],
 );
 
@@ -720,13 +728,21 @@ export const legacyDocumentRetentionBatchV1 = sqliteTable(
     documentCount: integer("documentCount").notNull(),
     sharedDocumentCount: integer("sharedDocumentCount").notNull(),
   },
-  (table) => [unique("LegacyDocumentRetentionBatchV1_sourceIdentity_unique").on(table.sourceIdentity)],
+  (table) => [
+    unique("LegacyDocumentRetentionBatchV1_sourceIdentity_unique").on(
+      table.sourceIdentity,
+    ),
+  ],
 );
 
-export type LegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferSelect;
-export type NewLegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferInsert;
-export type LegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferSelect;
-export type NewLegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferInsert;
+export type LegacyDocumentRetentionV1 =
+  typeof legacyDocumentRetentionV1.$inferSelect;
+export type NewLegacyDocumentRetentionV1 =
+  typeof legacyDocumentRetentionV1.$inferInsert;
+export type LegacyDocumentRetentionBatchV1 =
+  typeof legacyDocumentRetentionBatchV1.$inferSelect;
+export type NewLegacyDocumentRetentionBatchV1 =
+  typeof legacyDocumentRetentionBatchV1.$inferInsert;
 
 export const legacyDocumentConversionV1 = sqliteTable(
   "LegacyDocumentConversionV1",
