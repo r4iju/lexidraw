@@ -19,8 +19,8 @@
     "@packages/lib": "workspace:*",
     "@sparticuz/chromium": "^153.0.0",
     "linkedom": "0.18.12",
-    "next": "16.4.2",
-    "puppeteer-core": "^25.11.0",
+    "next": "16.4.6",
+    "puppeteer-core": "^25.17.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
@@ -35,7 +35,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
-    "puppeteer": "^25.11.0",
+    "puppeteer": "^25.17.0",
     "typescript": "^7.0.2"
   }
 }
