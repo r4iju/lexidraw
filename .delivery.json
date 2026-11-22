@@ -1,0 +1,20 @@
+{
+  "route": "vercel-prebuilt",
+  "appDir": "apps/lexidraw",
+  "packageManager": "bun",
+  "productionUrls": ["https://lexidraw.vercel.app"],
+  "healthPaths": ["/"],
+  "extraApps": [
+    {
+      "appDir": "apps/code-runner",
+      "productionUrls": ["https://lexidraw-code-runner.vercel.app"],
+      "healthPaths": ["/runner.html"]
+    },
+    {
+      "appDir": "apps/render-html-worker",
+      "productionUrls": ["https://render-html-worker.vercel.app"],
+      "healthPaths": ["/"]
+    }
+  ],
+  "prebuiltOnly": true
+}

@@ -4,6 +4,10 @@ import { drizzle, and, inArray, sql, schema, eq } from "@packages/drizzle";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 
+// Each tick marks and dispatches at most ten jobs. Rendering runs in
+// separate workflow invocations, and the next cron tick is one minute away.
+export const maxDuration = 60;
+
 function logCron(event: string, data: Record<string, unknown> = {}): void {
   try {
     console.log(

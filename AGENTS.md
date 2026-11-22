@@ -13,8 +13,6 @@ servers and package scripts through `prun`, never directly on the Mac.
   `prun bun run test '--filter=!@apps/ios'`.
   The package `lint` scripts run `biome check --write`. In the container they
   rewrite files under `packages/drizzle`, so check `git status` afterwards.
-- Build: `prun env VERCEL_URL=localhost bun run build`.
-  `next.config.ts` needs `VERCEL_URL`, which only Vercel sets.
 - Dev server: `prun --port 3025 bun run dev`, then open
   http://localhost:3025. Stop it with Ctrl-C on the `prun` process.
   Only port 3025 is published; render-html-worker (4025) is not reachable
@@ -35,3 +33,18 @@ Known gaps (2026-10-26):
   cross-file interference. It has not been compared with a run on the Mac.
 - `lint` fails on two existing design-token findings in
   `apps/lexidraw/src/app/settings/`.
+
+## Production builds and releases
+
+In each of `apps/lexidraw`, `apps/code-runner`, and `apps/render-html-worker`,
+run `prun --vercel pull --prod` followed by `prun --vercel build --prod`.
+Finish one app before pulling the next because they share the checkout's
+`.vercel/` directory. The Lexidraw build reads the app's production env files
+from the registered main checkout through `PRUN_ENV_DIR`. If the runner build
+has no `VERCEL_URL`, the build script uses the hostname from the first
+`productionUrls` entry in `.delivery.json`.
+
+Once registered, Delivery handles production releases from merged `master` using
+[`.delivery.json`](.delivery.json). For each app it pulls and builds locally,
+uploads with `prun --vercel deploy --prod`, and runs the production health
+check. Keep Git-triggered Vercel deployments disabled.
