@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "../../build.sh; node scripts/check-server-externals.mjs && bun scripts/excalidraw-assets.ts && next build --turbopack",
+    "build": "../../build.sh; node scripts/check-server-externals.mjs && bun scripts/excalidraw-assets.ts && node scripts/build.mjs",
     "analyze": "bun scripts/excalidraw-assets.ts && next analyze",
     "dev": "bun scripts/excalidraw-assets.ts && next dev --hostname 0.0.0.0 --port 3025 --turbopack",
     "fonts:sync": "bun run scripts/sync-excalidraw-fonts.ts",
     "lint": "bun scripts/check-design-tokens.ts && bun x @biomejs/biome check .",
     "test:ts": "tsgo --noEmit",
     "start": "next start --hostname 0.0.0.0 --port 3025",
-    "test": "bun test",
+    "test": "node --test scripts/check-build-env.mjs scripts/check-workflow-fetch.mjs && bun test",
     "openapi:fixture": "bun --preload ./src/test/stub-env.ts ./src/test/write-openapi-copies.ts"
   },
   "dependencies": {

@@ -8,6 +8,10 @@ import { purgeExpiredSignInAttempts } from "~/server/auth/sign-in-rate-limit";
 import { purgeRoomSignals } from "~/server/rooms/room-signaling";
 import { cleanupOrphanedBlobsWorkflow } from "~/workflows/cleanup/cleanup-orphaned-blobs-workflow";
 
+// Allow time for the bounded database and private-image cleanup batches.
+// The orphaned-blob workflow runs in separate invocations.
+export const maxDuration = 120;
+
 export async function GET() {
   console.log("#[Vercel Blob Cleanup]# Cron job started ", "#".repeat(20));
 
