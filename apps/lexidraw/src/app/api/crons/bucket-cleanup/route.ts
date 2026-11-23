@@ -36,16 +36,22 @@ export async function GET() {
     });
   }
 
-  let phase: "initialization" | "cleanup" = "initialization";
-  try {
-    const images = generatedImages();
-    phase = "cleanup";
-    await images.cleanup();
-  } catch (error) {
-    console.error("[Vercel Blob Cleanup] Generated image cleanup failed", {
-      phase,
-      error: errorCode(error),
-    });
+  if (!process.env.PRIVATE_IMAGE_BLOB_READ_WRITE_TOKEN) {
+    console.info(
+      "[Vercel Blob Cleanup] Generated image cleanup skipped: private image storage is not configured",
+    );
+  } else {
+    let phase: "initialization" | "cleanup" = "initialization";
+    try {
+      const images = generatedImages();
+      phase = "cleanup";
+      await images.cleanup();
+    } catch (error) {
+      console.error("[Vercel Blob Cleanup] Generated image cleanup failed", {
+        phase,
+        error: errorCode(error),
+      });
+    }
   }
 
   try {
