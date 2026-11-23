@@ -38,6 +38,8 @@ Known gaps (2026-10-26):
 
 In each of `apps/lexidraw`, `apps/code-runner`, and `apps/render-html-worker`,
 run `prun --vercel pull --prod` followed by `prun --vercel build --prod`.
+The Lexidraw and render worker Vercel build commands build their workspace
+dependencies as part of this sequence.
 Finish one app before pulling the next because they share the checkout's
 `.vercel/` directory. The Lexidraw build reads the app's production env files
 from the registered main checkout through `PRUN_ENV_DIR`. If the runner build
