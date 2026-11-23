@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run --cwd ../.. turbo run build --filter='@apps/render-html-worker^...' && bun run build",
   "git": { "deploymentEnabled": false },
   "functions": {
     "app/api/screenshot/route": {

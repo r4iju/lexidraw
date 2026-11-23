@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run --cwd ../.. turbo run build --filter='@apps/lexidraw^...' && bun run build",
   "git": { "deploymentEnabled": false },
   "crons": [
     {
