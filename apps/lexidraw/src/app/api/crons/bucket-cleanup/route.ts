@@ -36,10 +36,16 @@ export async function GET() {
     });
   }
 
+  let phase: "initialization" | "cleanup" = "initialization";
   try {
-    await generatedImages().cleanup();
-  } catch {
-    console.error("[Vercel Blob Cleanup] Generated image cleanup failed");
+    const images = generatedImages();
+    phase = "cleanup";
+    await images.cleanup();
+  } catch (error) {
+    console.error("[Vercel Blob Cleanup] Generated image cleanup failed", {
+      phase,
+      error: errorCode(error),
+    });
   }
 
   try {
